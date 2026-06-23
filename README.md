@@ -468,7 +468,7 @@ function initAuth() {
     }
   });
   showLoading('Iniciando sesión…');
-  tokenClient.requestAccessToken({ prompt: '' });
+  tokenClient.requestAccessToken({ prompt: 'consent' });
 }
  
 // ═══════════════════════════════════════════════════════
@@ -902,3 +902,4 @@ function toast(msg) {
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </body>
 </html>
+ 
