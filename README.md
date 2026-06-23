@@ -427,7 +427,7 @@ const ENG_SHEET_NAME  = 'Ingenieros';
 // PIN de admin (SHA-256 del texto "CB2024sener" — cámbialo si quieres)
 // Para cambiar: genera el hash en: https://emn178.github.io/online-tools/sha256.html
 // El valor por defecto corresponde a la contraseña:  senerCB26
-const ADMIN_PIN_HASH  = 'b8dfcf62a0cbc88e4c05c7e1e4fc30b47f4a0f06e73e86e30b11fef44c6a4f1e';
+const ADMIN_PIN_HASH  = '569656c588fa8c8871f918ca6921896fbe82336f67e0702f49d22521f4d0deae';
  
 // ═══════════════════════════════════════════════════════
 //  ESTADO
