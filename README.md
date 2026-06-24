@@ -314,12 +314,46 @@
       <div class="new-client-panel" id="new-client-panel">
         <p>⚠️ Este cliente quedará marcado como "Pendiente validación CB"</p>
         <div class="field">
-          <label>Nombre de la empresa (MAYÚSCULAS)</label>
+          <label>Nombre de la empresa <span style="color:var(--accent)">*</span></label>
           <input type="text" id="input-new-name" placeholder="Ej: CONSTRUCTORA EXAMPLE" style="text-transform:uppercase;">
         </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div class="field">
+            <label>RUT <span style="color:var(--accent)">*</span></label>
+            <input type="text" id="input-new-rut" placeholder="Ej: 76.123.456-7">
+          </div>
+          <div class="field">
+            <label>Giro</label>
+            <input type="text" id="input-new-giro" placeholder="Ej: CONSTRUCTORA">
+          </div>
+        </div>
         <div class="field">
-          <label>RUT de la empresa</label>
-          <input type="text" id="input-new-rut" placeholder="Ej: 76.123.456-7">
+          <label>Dirección</label>
+          <input type="text" id="input-new-dir" placeholder="Ej: Av. Principal 123">
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div class="field">
+            <label>Teléfono</label>
+            <input type="text" id="input-new-tel" placeholder="Ej: 612226628">
+          </div>
+          <div class="field">
+            <label>Nombre contacto</label>
+            <input type="text" id="input-new-contacto" placeholder="Ej: JUAN PÉREZ">
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div class="field">
+            <label>Cargo contacto</label>
+            <input type="text" id="input-new-cargo" placeholder="Ej: GERENTE">
+          </div>
+          <div class="field">
+            <label>Celular</label>
+            <input type="text" id="input-new-cel" placeholder="Ej: 56912345678">
+          </div>
+        </div>
+        <div class="field">
+          <label>Email contacto</label>
+          <input type="text" id="input-new-email" placeholder="Ej: contacto@empresa.cl">
         </div>
       </div>
     </div>
@@ -519,7 +553,7 @@ function processGeneral(rows) {
  
 function processCC(rows) {
   allCC = rows.map(r => ({
-    code:     (r[0]||'').trim(),
+    code:     (r[0]||'').replace(/\s+/g,'').trim(),
     desc:     (r[1]||'').trim(),
     client:   (r[2]||'').trim(),
     engineer: (r[3]||'').trim(),
@@ -702,7 +736,15 @@ async function confirmarGuardar() {
  
     if (isNewClient) {
       const newName = document.getElementById('input-new-name').value.trim().toUpperCase();
-      await appendRow('General', ['','','',`${clientCode} ${newName}`,newRut||'','','','','','','','',today,'Pendiente validación CB',engineer,'']);
+      const newGiro     = document.getElementById('input-new-giro').value.trim();
+      const newDir      = document.getElementById('input-new-dir').value.trim();
+      const newTel      = document.getElementById('input-new-tel').value.trim();
+      const newContacto = document.getElementById('input-new-contacto').value.trim();
+      const newCargo    = document.getElementById('input-new-cargo').value.trim();
+      const newCel      = document.getElementById('input-new-cel').value.trim();
+      const newEmail    = document.getElementById('input-new-email').value.trim();
+      // Columns: A=EstFact, B=EstCob, C=Meses, D=Cliente, E=RUT, F=Giro, G=Dir, H=Tel, I=Contacto, J=Cargo, K=Cel, L=Email, M=FechaLey, N=Pendiente, O=Ing
+      await appendRow('General', ['','','',`${clientCode} ${newName}`,newRut||'',newGiro,newDir,newTel,newContacto,newCargo,newCel,newEmail,today,'Pendiente validación CB',engineer]);
       allClients.push({ code:clientCode, name:newName, fullLabel:`${clientCode} ${newName}`, rut:newRut });
       allClients.sort((a,b)=>parseInt(a.code)-parseInt(b.code));
       populateClientSelect(allClients);
@@ -755,7 +797,7 @@ function addToHistory(code, desc, client, eng, pending) {
 // ═══════════════════════════════════════════════════════
 function resetForm() {
   generatedCode = null; generatedMeta = null;
-  ['input-desc','input-client-search','input-parent-search','input-new-name','input-new-rut']
+  ['input-desc','input-client-search','input-parent-search','input-new-name','input-new-rut','input-new-giro','input-new-dir','input-new-tel','input-new-contacto','input-new-cargo','input-new-cel','input-new-email']
     .forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   document.getElementById('sel-client').value = '';
   document.getElementById('sel-parent').value = '';
