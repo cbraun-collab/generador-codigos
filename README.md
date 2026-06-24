@@ -415,7 +415,7 @@
 // ═══════════════════════════════════════════════════════
 //  CONFIG
 // ═══════════════════════════════════════════════════════
-const SHEET_ID      = '1g0NebWHplPYcLLFCSOD6LkQcnwDy9Kuq';
+const SHEET_ID      = '1N6BmSf_3pjdmUmIcIl_BVknBi9sdvQBDKSgkxoCjIV0';
 const CLIENT_ID_GIS = '72369192874-rgv4vqjl243p39fv0dntkl5a4m13s8k6.apps.googleusercontent.com';
 const SCOPES        = 'https://www.googleapis.com/auth/spreadsheets';
  
@@ -902,7 +902,3 @@ function toast(msg) {
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </body>
 </html>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-</body>
-</html>
- 
