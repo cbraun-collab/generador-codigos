@@ -743,8 +743,11 @@ async function confirmarGuardar() {
       const newCargo    = document.getElementById('input-new-cargo').value.trim();
       const newCel      = document.getElementById('input-new-cel').value.trim();
       const newEmail    = document.getElementById('input-new-email').value.trim();
-      // Columns: A=EstFact, B=EstCob, C=Meses, D=Cliente, E=RUT, F=Giro, G=Dir, H=Tel, I=Contacto, J=Cargo, K=Cel, L=Email, M=FechaLey, N=Pendiente, O=Ing
-      await appendRow('General', ['','','',`${clientCode} ${newName}`,newRut||'',newGiro,newDir,newTel,newContacto,newCargo,newCel,newEmail,today,'Pendiente validación CB',engineer]);
+      // Find first empty row in col D, then write directly to that row
+      const colDData = await fetchRange('General!D:D');
+      const firstEmptyRow = colDData.length + 1; // next row after last data in col D
+      // Write directly to specific row: A-C empty, D=Cliente, E=RUT, F=Giro, G=Dir, H=Tel, I=Contacto, J=Cargo, K=Cel, L=Email, M=FechaLey, N=Pendiente, O=Ing
+      await writeRow('General', firstEmptyRow, ['','','',`${clientCode} ${newName}`,newRut||'',newGiro,newDir,newTel,newContacto,newCargo,newCel,newEmail,today,'Pendiente validación CB',engineer]);
       allClients.push({ code:clientCode, name:newName, fullLabel:`${clientCode} ${newName}`, rut:newRut });
       allClients.sort((a,b)=>parseInt(a.code)-parseInt(b.code));
       populateClientSelect(allClients);
@@ -766,6 +769,14 @@ async function confirmarGuardar() {
     console.error(e);
     btn.disabled = false;
   }
+}
+ 
+async function writeRow(sheetName, rowNumber, row) {
+  // Write to a specific row number starting at column A
+  const range = `${sheetName}!A${rowNumber}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+  const r = await fetch(url, { method:'PUT', headers:{ Authorization:`Bearer ${accessToken}`, 'Content-Type':'application/json' }, body:JSON.stringify({ values:[row] }) });
+  if (!r.ok) { const e=await r.json(); throw new Error(e.error?.message||`HTTP ${r.status}`); }
 }
  
 async function appendRow(sheetName, row) {
