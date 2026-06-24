@@ -415,12 +415,12 @@
 // ═══════════════════════════════════════════════════════
 //  CONFIG
 // ═══════════════════════════════════════════════════════
-const SHEET_ID      = '1-DkYqz4MEGGomiQLkMMyM2d6SvlB_JAZypPj0EiIW4w';
+const SHEET_ID      = '1g0NebWHplPYcLLFCSOD6LkQcnwDy9Kuq';
 const CLIENT_ID_GIS = '72369192874-rgv4vqjl243p39fv0dntkl5a4m13s8k6.apps.googleusercontent.com';
 const SCOPES        = 'https://www.googleapis.com/auth/spreadsheets';
  
 const GENERAL_RANGE   = 'General!A2:E2000';
-const CC_RANGE        = 'Centro de Costos!A4:F3000';
+const CC_RANGE        = 'Centros de Costos!A4:F3000';
 const ENG_RANGE       = 'Ingenieros!A2:B50';   // col A = iniciales, col B = nombre
 const ENG_SHEET_NAME  = 'Ingenieros';
  
@@ -709,7 +709,7 @@ async function confirmarGuardar() {
     }
  
     const pendTag = isNewClient ? ' [Pendiente validación CB - cliente nuevo]' : '';
-    await appendRow('Centro de Costos', [generatedCode, desc+pendTag, clientLabel, engineer, today, '']);
+    await appendRow('Centros de Costos', [generatedCode, desc+pendTag, clientLabel, engineer, today, '']);
  
     allCC.push({ code:generatedCode, desc, client:clientLabel, engineer, date:today, amount:'' });
     if (currentTipo==='O') { allParents.push({ code:generatedCode, desc, client:clientLabel, engineer }); populateParentSelect(allParents); }
@@ -899,6 +899,9 @@ function toast(msg) {
   clearTimeout(el._t); el._t=setTimeout(()=>el.className='',3000);
 }
 </script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</body>
+</html>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </body>
 </html>
