@@ -75,7 +75,7 @@ function initAuth() {
       Continuar con Google
     </button>`;
 
-  window._startAuth = () => tokenClient.requestAccessToken({ prompt: 'select_account' });
+  window._startAuth = () => tokenClient.requestAccessToken({ prompt: 'consent' });
 }
 
 async function onSignedIn() {
