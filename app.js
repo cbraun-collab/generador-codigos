@@ -41,7 +41,7 @@ function initAuth() {
     toast('Falta configurar el Client ID en config.js', true); return;
   }
 
-  // Inicializar tokenClient con todos los scopes necesarios
+  // Token client OAuth2 puro — sin google.accounts.id que interfiere
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CONFIG.GOOGLE_CLIENT_ID,
     scope: [
@@ -56,16 +56,15 @@ function initAuth() {
     },
   });
 
-  // Renderizar botón propio — evita problemas con el iframe de Google Identity
+  // Botón propio — no usa google.accounts.id ni renderButton
   document.getElementById('gSignInBtn').innerHTML = `
-    <button onclick="window._startAuth()" style="
-      display:inline-flex; align-items:center; gap:12px;
-      background:#fff; border:1.5px solid #DDE3E2; border-radius:999px;
-      padding:13px 28px; cursor:pointer; font-family:'Montserrat',sans-serif;
-      font-size:15px; font-weight:600; color:#1A1A1A;
-      box-shadow:0 2px 8px rgba(0,0,0,0.10); transition:box-shadow .15s;
-    " onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.18)'"
-       onmouseout="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.10)'">
+    <button id="btnEntrar" style="
+      display:inline-flex;align-items:center;gap:12px;
+      background:#fff;border:1.5px solid #DDE3E2;border-radius:999px;
+      padding:13px 28px;cursor:pointer;font-family:'Montserrat',sans-serif;
+      font-size:15px;font-weight:600;color:#1A1A1A;
+      box-shadow:0 2px 8px rgba(0,0,0,0.10);
+    ">
       <svg width="20" height="20" viewBox="0 0 48 48">
         <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
         <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
@@ -75,7 +74,9 @@ function initAuth() {
       Continuar con Google
     </button>`;
 
-  window._startAuth = () => tokenClient.requestAccessToken({ prompt: 'consent' });
+  document.getElementById('btnEntrar').addEventListener('click', () => {
+    tokenClient.requestAccessToken({ prompt: 'consent' });
+  });
 }
 
 async function onSignedIn() {
