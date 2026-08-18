@@ -567,8 +567,9 @@ async function crearCarpetasDrive(codigoFinal) {
 }
 
 async function crearEstructuraCompleta(parentId, codigo) {
-  const idxR = addDriveRow(`📁 ${codigo}`);
-  const rootId = await driveEnsureFolder(codigo, parentId);
+  const nombreCarpeta = `${codigo} ${state.nombreProyecto}`.slice(0, 140); // Drive límite ~140 chars
+  const idxR = addDriveRow(`📁 ${nombreCarpeta}`);
+  const rootId = await driveEnsureFolder(nombreCarpeta, parentId);
   updDriveRow(idxR,'ok',rootId);
 
   const idxEst = addDriveRow('📂 01 - ESTUDIO PROYECTO');
