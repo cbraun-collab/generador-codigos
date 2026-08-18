@@ -8,11 +8,11 @@ const CONFIG = {
   GOOGLE_CLIENT_ID: '72369192874-rgv4vqjl243p39fv0dntkl5a4m13s8k6.apps.googleusercontent.com',
 
   // Planilla maestra
-  SPREADSHEET_ID: '1-DkYqz4MEGGomiQLkMMyM2d6SvlB_JAZypPj0EiIW4w',
+  SPREADSHEET_ID: '1N6BmSf_3pjdmUmIcIl_BVknBi9sdvQBDKSgkxoCjIV0',
   SHEET_GENERAL: 'General',
-  SHEET_CENTRO_COSTOS: 'Centro de Costos',
+  SHEET_CENTRO_COSTOS: 'Centro de costos',
   RANGE_GENERAL_READ: 'General!A2:E1000',
-  RANGE_CC_READ: 'Centro de Costos!A4:L3000',
+  RANGE_CC_READ: 'Centro de costos!A4:L3000',
 
   // Carpeta raíz "obras" en Drive
   // https://drive.google.com/drive/folders/1Lm2X3Uz_H_sUkD7Zll0JjKPSdaa1EW9n
