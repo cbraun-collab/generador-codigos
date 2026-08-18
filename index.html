@@ -4,237 +4,188 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#003B49">
-<meta name="description" content="Generador de códigos de presupuesto SENERCOM — asigna correlativos y crea carpetas en Drive.">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://*.googleusercontent.com; connect-src https://sheets.googleapis.com https://www.googleapis.com https://accounts.google.com https://drive.googleapis.com; frame-src https://accounts.google.com;">
+<meta name="description" content="Generador de códigos de presupuesto SENERCOM">
 <title>Generador de Códigos · SENERCOM</title>
 <link rel="manifest" href="manifest.json">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Montserrat:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
-
-  :root{
-    --ink:#0A1A1D;
-    --teal:#003B49;
-    --teal-light:#0B5563;
-    --teal-dim:#E8EEEF;
-    --rust:#CF4520;
-    --rust-light:#E8693F;
-    --paper:#F7F5F1;
-    --card:#FFFFFF;
-    --line:#DDE3E2;
-    --good:#1F7A52;
-    --good-bg:#E7F4ED;
-    --warn:#B9760A;
-    --warn-bg:#FBF1DD;
-    --muted:#6B7B7C;
-    --radius:14px;
-    --shadow:0 1px 2px rgba(10,26,29,0.04),0 8px 24px -12px rgba(10,26,29,0.18);
-  }
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  html,body{margin:0;padding:0;}
-  body{
-    font-family:'Montserrat',system-ui,sans-serif;
-    background:radial-gradient(800px 400px at 100% -10%,rgba(207,69,32,0.06),transparent 60%),var(--paper);
-    color:var(--ink);min-height:100vh;padding-bottom:48px;
-  }
-
-  /* topbar */
-  .topbar{position:sticky;top:0;z-index:40;background:var(--teal);color:#fff;
-    padding:14px 18px;display:flex;align-items:center;justify-content:space-between;
-    box-shadow:0 4px 16px -8px rgba(0,0,0,0.4);}
-  .brand{display:flex;align-items:center;gap:10px;}
-  .brand-mark{height:28px;width:auto;flex-shrink:0;display:block;filter:brightness(0) invert(1);}
-  .brand-mark-signin{height:44px;width:auto;display:block;margin:0 auto 20px;}
-  .brand-text{display:flex;flex-direction:column;line-height:1.15;}
-  .brand-text strong{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;letter-spacing:0.2px;}
-  .brand-text span{font-size:10.5px;color:rgba(255,255,255,0.65);letter-spacing:0.4px;text-transform:uppercase;}
-  .user-chip{display:flex;align-items:center;gap:8px;font-size:12.5px;color:rgba(255,255,255,0.85);}
-  #userAvatar{width:26px;height:26px;border-radius:50%;display:none;border:1.5px solid rgba(255,255,255,0.4);}
-  .icon-btn{background:rgba(255,255,255,0.12);border:none;color:#fff;width:32px;height:32px;
-    border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;}
-  .icon-btn:hover{background:rgba(255,255,255,0.22);}
-
-  /* shell */
-  .shell{max-width:640px;margin:0 auto;padding:20px 16px 0;}
-
-  /* signin */
-  .signin-screen{max-width:420px;margin:14vh auto 0;padding:0 20px;text-align:center;}
-  .signin-screen .brand-mark-signin{height:50px;}
-  /* En el topbar el logo va en blanco (filter invert); en signin va en color original */
-  .brand-mark-signin{filter:none !important;}
-  .signin-screen h1{font-family:'Space Grotesk',sans-serif;font-size:22px;margin:0 0 6px;color:var(--teal);}
-  .signin-screen p{color:var(--muted);font-size:14px;margin:0 0 28px;line-height:1.5;}
-  #gSignInBtn{display:flex;justify-content:center;}
-
-  /* steps */
-  .steps{display:flex;align-items:center;gap:6px;margin-bottom:22px;padding:0 2px;}
-  .step-dot{flex:1;height:4px;border-radius:3px;background:var(--line);transition:background .25s;}
-  .step-dot.active{background:var(--rust);}
-  .step-dot.done{background:var(--teal-light);}
-
-  /* card */
-  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-    padding:22px 20px;box-shadow:var(--shadow);margin-bottom:16px;}
-  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;
-    letter-spacing:1px;text-transform:uppercase;color:var(--rust);margin-bottom:6px;}
-  h2.step-title{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;
-    color:var(--teal);margin:0 0 4px;}
-  .step-sub{font-size:13px;color:var(--muted);margin:0 0 18px;line-height:1.5;}
-
-  /* choice */
-  .choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .choice-btn{border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:18px 14px;
-    cursor:pointer;text-align:left;transition:.15s;display:flex;flex-direction:column;gap:6px;}
-  .choice-btn:hover{border-color:var(--teal-light);background:var(--teal-dim);}
-  .choice-btn.selected{border-color:var(--rust);background:#FFF4EF;box-shadow:0 0 0 1px var(--rust);}
-  .choice-btn .ico{font-size:20px;}
-  .choice-btn .label{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14.5px;color:var(--teal);}
-  .choice-btn .desc{font-size:11.5px;color:var(--muted);line-height:1.4;}
-
-  /* inputs */
-  .field{margin-bottom:16px;}
-  .field label{display:block;font-size:12px;font-weight:600;color:var(--teal);margin-bottom:6px;letter-spacing:0.2px;}
-  .field input[type=text],.field select{width:100%;padding:13px 14px;border-radius:10px;
-    border:1.5px solid var(--line);font-size:14.5px;font-family:inherit;background:#fff;color:var(--ink);}
-  .field input[type=text]:focus,.field select:focus{outline:none;border-color:var(--teal-light);}
-  .hint{font-size:11.5px;color:var(--muted);margin-top:5px;}
-
-  /* autocomplete */
-  .autocomplete-wrap{position:relative;}
-  .ac-list{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;
-    border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);
-    max-height:230px;overflow-y:auto;z-index:30;display:none;}
-  .ac-list.show{display:block;}
-  .ac-item{padding:11px 14px;cursor:pointer;font-size:13.5px;border-bottom:1px solid #F1EFEA;
-    display:flex;justify-content:space-between;align-items:center;gap:10px;}
-  .ac-item:last-child{border-bottom:none;}
-  .ac-item:hover{background:var(--teal-dim);}
-  .ac-item .ac-code{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--rust);font-weight:600;}
-  .ac-empty{padding:14px;font-size:12.5px;color:var(--muted);text-align:center;}
-  .ac-new{padding:12px 14px;cursor:pointer;font-size:13px;color:var(--teal-light);
-    font-weight:600;border-top:1px dashed var(--line);background:#FAFBFA;}
-  .ac-new:hover{background:var(--teal-dim);}
-
-  /* pills */
-  .pill-row{display:flex;flex-wrap:wrap;gap:8px;}
-  .pill{border:1.5px solid var(--line);background:#fff;border-radius:999px;
-    padding:9px 16px;font-size:13px;font-weight:600;color:var(--teal);
-    cursor:pointer;transition:.15s;font-family:'JetBrains Mono',monospace;}
-  .pill:hover{border-color:var(--teal-light);}
-  .pill.selected{background:var(--teal);border-color:var(--teal);color:#fff;}
-
-  /* buttons */
-  .btn-row{display:flex;gap:10px;margin-top:4px;}
-  .btn{flex:1;padding:14px 18px;border-radius:11px;border:none;
-    font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14.5px;
-    cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px;}
-  .btn-primary{background:var(--rust);color:#fff;}
-  .btn-primary:hover{background:var(--rust-light);}
-  .btn-primary:disabled{background:#D8C9C2;cursor:not-allowed;}
-  .btn-ghost{background:transparent;border:1.5px solid var(--line);color:var(--teal);flex:0 0 auto;padding:14px 20px;}
-  .btn-ghost:hover{border-color:var(--teal-light);}
-
-  /* result */
-  .result-code{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:700;color:var(--teal);
-    background:var(--teal-dim);border:1.5px dashed var(--teal-light);border-radius:12px;
-    padding:20px 16px;text-align:center;letter-spacing:0.5px;word-break:break-all;
-    margin:14px 0;position:relative;}
-  .copy-btn{position:absolute;top:10px;right:10px;background:var(--teal);color:#fff;
-    border:none;border-radius:8px;width:32px;height:32px;cursor:pointer;
-    display:flex;align-items:center;justify-content:center;}
-  .breakdown{display:flex;flex-direction:column;gap:7px;margin:16px 0;}
-  .bd-row{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;
-    padding:8px 12px;background:#FAFBFA;border-radius:8px;border:1px solid #EEECE7;}
-  .bd-row .k{color:var(--muted);font-weight:500;}
-  .bd-row .v{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--ink);}
-
-  /* drive progress */
-  .drive-progress{display:flex;flex-direction:column;gap:6px;margin:14px 0;}
-  .dp-row{display:flex;align-items:center;gap:10px;padding:9px 12px;
-    background:#FAFBFA;border:1px solid #EEECE7;border-radius:9px;font-size:12.5px;}
-  .dp-icon{font-size:15px;flex-shrink:0;}
-  .dp-label{flex:1;color:var(--ink);font-weight:500;}
-  .dp-status{font-size:11px;font-weight:700;letter-spacing:0.3px;flex-shrink:0;}
-  .dp-status.ok{color:var(--good);}
-  .dp-status.err{color:#9B1B1B;}
-  .dp-status.spin{color:var(--muted);}
-  .dp-link{font-size:11px;color:var(--teal-light);text-decoration:none;font-weight:600;flex-shrink:0;}
-  .dp-link:hover{text-decoration:underline;}
-
-  .badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
-    padding:5px 11px;border-radius:999px;letter-spacing:0.3px;}
-  .badge-warn{background:var(--warn-bg);color:var(--warn);}
-  .badge-good{background:var(--good-bg);color:var(--good);}
-
-  /* toast */
-  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
-    background:var(--ink);color:#fff;padding:13px 22px;border-radius:11px;
-    font-size:13.5px;font-weight:600;box-shadow:var(--shadow);
-    opacity:0;transition:.25s;z-index:100;pointer-events:none;max-width:90vw;text-align:center;}
-  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-  .toast.err{background:#7A1F1F;}
-
-  /* loading */
-  .spinner{width:16px;height:16px;border:2.5px solid rgba(255,255,255,0.4);
-    border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;}
-  @keyframes spin{to{transform:rotate(360deg);}}
-  .loading-overlay{position:fixed;inset:0;background:rgba(10,26,29,0.55);
-    display:none;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(2px);}
-  .loading-overlay.show{display:flex;}
-  .loading-box{background:#fff;padding:24px 28px;border-radius:14px;text-align:center;
-    display:flex;flex-direction:column;align-items:center;gap:12px;max-width:300px;}
-  .loading-box .spinner{width:28px;height:28px;border-color:rgba(0,59,73,0.15);border-top-color:var(--teal);}
-  .loading-box span{font-size:13px;color:var(--teal);font-weight:600;line-height:1.4;}
-
-  /* history */
-  .history-link{text-align:center;margin-top:6px;}
-  .history-link button{background:none;border:none;color:var(--muted);font-size:12.5px;
-    cursor:pointer;text-decoration:underline;text-underline-offset:3px;font-family:inherit;}
-  .modal-back{position:fixed;inset:0;background:rgba(10,26,29,0.5);z-index:150;
-    display:none;align-items:flex-end;justify-content:center;}
-  .modal-back.show{display:flex;}
-  @media(min-width:560px){.modal-back{align-items:center;}}
-  .modal-box{background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;
-    padding:22px 20px 28px;max-height:80vh;overflow-y:auto;animation:slideUp .25s ease;}
-  @media(min-width:560px){.modal-box{border-radius:18px;}}
-  @keyframes slideUp{from{transform:translateY(30px);opacity:0;}to{transform:translateY(0);opacity:1;}}
-  .modal-close{float:right;background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;}
-  .hist-item{padding:11px 13px;background:#FAFBFA;border:1px solid #EEECE7;border-radius:10px;
-    display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;}
-  .hist-item .code{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12.5px;color:var(--teal);}
-  .hist-item .meta{font-size:10.5px;color:var(--muted);}
-
-  ::-webkit-scrollbar{width:6px;}
-  ::-webkit-scrollbar-thumb{background:#CFC9BF;border-radius:3px;}
-  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Montserrat:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+:root{
+  --ink:#0A1A1D;--teal:#003B49;--teal-light:#0B5563;--teal-dim:#E8EEEF;
+  --rust:#CF4520;--rust-light:#E8693F;--paper:#F7F5F1;--card:#FFFFFF;
+  --line:#DDE3E2;--good:#1F7A52;--good-bg:#E7F4ED;--warn:#B9760A;
+  --warn-bg:#FBF1DD;--muted:#6B7B7C;--radius:14px;
+  --shadow:0 1px 2px rgba(10,26,29,0.04),0 8px 24px -12px rgba(10,26,29,0.18);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{font-family:'Montserrat',system-ui,sans-serif;
+  background:radial-gradient(800px 400px at 100% -10%,rgba(207,69,32,0.06),transparent 60%),var(--paper);
+  color:var(--ink);min-height:100vh;padding-bottom:48px;}
+.topbar{position:sticky;top:0;z-index:40;background:var(--teal);color:#fff;
+  padding:12px 18px;display:flex;align-items:center;justify-content:space-between;
+  box-shadow:0 4px 16px -8px rgba(0,0,0,0.4);}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand img{height:26px;filter:brightness(0) invert(1);}
+.brand span{font-size:10.5px;color:rgba(255,255,255,0.65);letter-spacing:0.4px;text-transform:uppercase;}
+.user-chip{display:flex;align-items:center;gap:8px;font-size:12.5px;color:rgba(255,255,255,0.85);}
+#userAvatar{width:26px;height:26px;border-radius:50%;display:none;border:1.5px solid rgba(255,255,255,0.4);}
+.icon-btn{background:rgba(255,255,255,0.12);border:none;color:#fff;width:32px;height:32px;
+  border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.icon-btn:hover{background:rgba(255,255,255,0.22);}
+.shell{max-width:640px;margin:0 auto;padding:20px 16px 0;}
+.signin-screen{max-width:420px;margin:14vh auto 0;padding:0 20px;text-align:center;}
+.signin-screen img{height:52px;margin-bottom:20px;}
+.signin-screen h1{font-family:'Space Grotesk',sans-serif;font-size:22px;margin:0 0 6px;color:var(--teal);}
+.signin-screen p{color:var(--muted);font-size:14px;margin:0 0 28px;line-height:1.5;}
+#gSignInBtn{display:flex;justify-content:center;}
+.steps{display:flex;align-items:center;gap:6px;margin-bottom:22px;}
+.step-dot{flex:1;height:4px;border-radius:3px;background:var(--line);transition:background .25s;}
+.step-dot.active{background:var(--rust);}
+.step-dot.done{background:var(--teal-light);}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:22px 20px;box-shadow:var(--shadow);margin-bottom:16px;}
+.eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;
+  letter-spacing:1px;text-transform:uppercase;color:var(--rust);margin-bottom:6px;}
+h2.step-title{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;
+  color:var(--teal);margin:0 0 4px;}
+.step-sub{font-size:13px;color:var(--muted);margin:0 0 18px;line-height:1.5;}
+.choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.choice-btn{border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:18px 14px;
+  cursor:pointer;text-align:left;transition:.15s;display:flex;flex-direction:column;gap:6px;}
+.choice-btn:hover{border-color:var(--teal-light);background:var(--teal-dim);}
+.choice-btn.selected{border-color:var(--rust);background:#FFF4EF;box-shadow:0 0 0 1px var(--rust);}
+.choice-btn .ico{font-size:20px;}
+.choice-btn .lbl{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14.5px;color:var(--teal);}
+.choice-btn .desc{font-size:11.5px;color:var(--muted);line-height:1.4;}
+.field{margin-bottom:16px;}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--teal);margin-bottom:6px;}
+.field input[type=text],.field input[type=number],.field select{width:100%;padding:13px 14px;
+  border-radius:10px;border:1.5px solid var(--line);font-size:14.5px;font-family:inherit;
+  background:#fff;color:var(--ink);}
+.field input:focus{outline:none;border-color:var(--teal-light);}
+.field input.err{border-color:#C0392B;}
+.hint{font-size:11.5px;color:var(--muted);margin-top:5px;}
+.autocomplete-wrap{position:relative;}
+.ac-list{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;
+  border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);
+  max-height:230px;overflow-y:auto;z-index:30;display:none;}
+.ac-list.show{display:block;}
+.ac-item{padding:11px 14px;cursor:pointer;font-size:13.5px;border-bottom:1px solid #F1EFEA;
+  display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.ac-item:last-child{border-bottom:none;}
+.ac-item:hover{background:var(--teal-dim);}
+.ac-code{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--rust);font-weight:600;}
+.ac-empty{padding:14px;font-size:12.5px;color:var(--muted);text-align:center;}
+.ac-new{padding:12px 14px;cursor:pointer;font-size:13px;color:var(--teal-light);
+  font-weight:600;border-top:1px dashed var(--line);background:#FAFBFA;}
+.ac-new:hover{background:var(--teal-dim);}
+.pill-row{display:flex;flex-wrap:wrap;gap:8px;}
+.pill{border:1.5px solid var(--line);background:#fff;border-radius:999px;
+  padding:9px 16px;font-size:13px;font-weight:600;color:var(--teal);
+  cursor:pointer;transition:.15s;font-family:'JetBrains Mono',monospace;}
+.pill:hover{border-color:var(--teal-light);}
+.pill.selected{background:var(--teal);border-color:var(--teal);color:#fff;}
+/* Financiero */
+.fin-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.fin-field{background:#FAFBFA;border:1px solid #EEECE7;border-radius:11px;padding:14px 14px 10px;}
+.fin-field label{font-size:11px;font-weight:700;color:var(--teal);letter-spacing:0.3px;
+  text-transform:uppercase;display:block;margin-bottom:6px;}
+.fin-field input{width:100%;border:1.5px solid var(--line);border-radius:8px;
+  padding:10px 12px;font-size:15px;font-family:'JetBrains Mono',monospace;
+  font-weight:600;color:var(--ink);background:#fff;}
+.fin-field input:focus{outline:none;border-color:var(--teal-light);}
+.fin-field input.err{border-color:#C0392B;}
+.fin-field .sub{font-size:10.5px;color:var(--muted);margin-top:4px;}
+.fin-resumen{background:var(--teal-dim);border:1px solid var(--teal-light);border-radius:11px;
+  padding:14px 16px;margin-top:14px;}
+.fin-resumen-row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid rgba(0,59,73,0.1);}
+.fin-resumen-row:last-child{border-bottom:none;font-weight:700;font-size:14px;padding-top:8px;}
+.fin-resumen-row .k{color:var(--muted);}
+.fin-resumen-row .v{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--teal);}
+.btn-row{display:flex;gap:10px;margin-top:4px;}
+.btn{flex:1;padding:14px 18px;border-radius:11px;border:none;
+  font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14.5px;
+  cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px;}
+.btn-primary{background:var(--rust);color:#fff;}
+.btn-primary:hover{background:var(--rust-light);}
+.btn-primary:disabled{background:#D8C9C2;cursor:not-allowed;}
+.btn-ghost{background:transparent;border:1.5px solid var(--line);color:var(--teal);flex:0 0 auto;padding:14px 20px;}
+.btn-ghost:hover{border-color:var(--teal-light);}
+.result-code{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;color:var(--teal);
+  background:var(--teal-dim);border:1.5px dashed var(--teal-light);border-radius:12px;
+  padding:18px 16px;text-align:center;word-break:break-all;margin:14px 0;position:relative;}
+.copy-btn{position:absolute;top:10px;right:10px;background:var(--teal);color:#fff;
+  border:none;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:15px;}
+.breakdown{display:flex;flex-direction:column;gap:7px;margin:14px 0;}
+.bd-row{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;
+  padding:8px 12px;background:#FAFBFA;border-radius:8px;border:1px solid #EEECE7;}
+.bd-row .k{color:var(--muted);}
+.bd-row .v{font-family:'JetBrains Mono',monospace;font-weight:600;}
+.drive-progress{display:flex;flex-direction:column;gap:6px;margin:10px 0;}
+.dp-row{display:flex;align-items:center;gap:10px;padding:8px 12px;
+  background:#FAFBFA;border:1px solid #EEECE7;border-radius:9px;font-size:12px;}
+.dp-label{flex:1;color:var(--ink);}
+.dp-status.ok{color:var(--good);font-weight:700;font-size:11px;}
+.dp-status.err{color:#9B1B1B;font-weight:700;font-size:11px;}
+.dp-status.spin{color:var(--muted);font-size:11px;}
+.dp-link{font-size:11px;color:var(--teal-light);text-decoration:none;font-weight:600;}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
+  padding:5px 11px;border-radius:999px;}
+.badge-warn{background:var(--warn-bg);color:var(--warn);}
+.badge-good{background:var(--good-bg);color:var(--good);}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--ink);color:#fff;padding:13px 22px;border-radius:11px;font-size:13.5px;
+  font-weight:600;box-shadow:var(--shadow);opacity:0;transition:.25s;z-index:100;
+  pointer-events:none;max-width:90vw;text-align:center;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.toast.err{background:#7A1F1F;}
+.spinner{width:16px;height:16px;border:2.5px solid rgba(255,255,255,0.4);
+  border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-overlay{position:fixed;inset:0;background:rgba(10,26,29,0.55);
+  display:none;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(2px);}
+.loading-overlay.show{display:flex;}
+.loading-box{background:#fff;padding:24px 28px;border-radius:14px;text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:12px;max-width:300px;}
+.loading-box .spinner{width:28px;height:28px;border-color:rgba(0,59,73,0.15);border-top-color:var(--teal);}
+.loading-box span{font-size:13px;color:var(--teal);font-weight:600;line-height:1.4;}
+.modal-back{position:fixed;inset:0;background:rgba(10,26,29,0.5);z-index:150;
+  display:none;align-items:flex-end;justify-content:center;}
+.modal-back.show{display:flex;}
+.modal-box{background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;
+  padding:22px 20px 28px;max-height:80vh;overflow-y:auto;}
+.modal-close{float:right;background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;}
+.hist-item{padding:11px 13px;background:#FAFBFA;border:1px solid #EEECE7;border-radius:10px;
+  display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;}
+.hist-code{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12.5px;color:var(--teal);}
+.hist-meta{font-size:10.5px;color:var(--muted);}
+.history-link{text-align:center;margin-top:8px;}
+.history-link button{background:none;border:none;color:var(--muted);font-size:12.5px;
+  cursor:pointer;text-decoration:underline;font-family:inherit;}
+::-webkit-scrollbar{width:6px;}
+::-webkit-scrollbar-thumb{background:#CFC9BF;border-radius:3px;}
 </style>
 </head>
 <body>
-
 <div class="loading-overlay" id="loadingOverlay">
-  <div class="loading-box">
-    <div class="spinner"></div>
-    <span id="loadingText">Conectando…</span>
-  </div>
+  <div class="loading-box"><div class="spinner"></div><span id="loadingText">Conectando…</span></div>
 </div>
-
 <div class="toast" id="toast"></div>
 
-<!-- signin -->
+<!-- SIGNIN -->
 <div class="signin-screen" id="signinScreen">
-  <img src="logo-senercom.png" alt="SENERCOM" class="brand-mark-signin">
+  <img src="logo-senercom.png" alt="SENERCOM">
   <h1>Generador de Códigos</h1>
   <p>Asigna el código correlativo del presupuesto y crea automáticamente las carpetas en Drive.</p>
   <div id="gSignInBtn"></div>
 </div>
 
-<!-- app -->
+<!-- APP -->
 <div id="appRoot" style="display:none;">
   <div class="topbar">
     <div class="brand">
-      <img src="logo-senercom.png" alt="SENERCOM" class="brand-mark">
-      <div class="brand-text">
-        <span>Generador de presupuestos</span>
-      </div>
+      <img src="logo-senercom.png" alt="SENERCOM">
+      <span>Generador de presupuestos</span>
     </div>
     <div class="user-chip">
       <img id="userAvatar" alt="">
@@ -249,32 +200,31 @@
       <div class="step-dot" data-step="2"></div>
       <div class="step-dot" data-step="3"></div>
       <div class="step-dot" data-step="4"></div>
+      <div class="step-dot" data-step="5"></div>
     </div>
 
-    <!-- STEP 1: tipo -->
+    <!-- PASO 1: tipo -->
     <div class="card" id="step1">
-      <div class="eyebrow">Paso 1 de 4</div>
+      <div class="eyebrow">Paso 1 de 5</div>
       <h2 class="step-title">¿Qué tipo de presupuesto es?</h2>
       <p class="step-sub">Define si es un presupuesto nuevo o un adicional de una obra ya adjudicada.</p>
       <div class="choice-grid">
         <button class="choice-btn" id="btnOriginal" onclick="selectTipo('O')">
-          <span class="ico">📄</span>
-          <span class="label">Original</span>
+          <span class="ico">📄</span><span class="lbl">Original</span>
           <span class="desc">Presupuesto nuevo para una obra o servicio.</span>
         </button>
         <button class="choice-btn" id="btnAdicional" onclick="selectTipo('A')">
-          <span class="ico">➕</span>
-          <span class="label">Adicional</span>
+          <span class="ico">➕</span><span class="lbl">Adicional</span>
           <span class="desc">Se desprende de un presupuesto original ya adjudicado.</span>
         </button>
       </div>
     </div>
 
-    <!-- STEP 2a: cliente (original) -->
+    <!-- PASO 2a: cliente -->
     <div class="card" id="step2" style="display:none;">
-      <div class="eyebrow">Paso 2 de 4</div>
+      <div class="eyebrow">Paso 2 de 5</div>
       <h2 class="step-title">Cliente</h2>
-      <p class="step-sub">Busca por nombre o RUT. Si no existe, puedes crearlo — se asignará el código siguiente y quedará pendiente de validación.</p>
+      <p class="step-sub">Busca por nombre o RUT. Si no existe, puedes crearlo — quedará pendiente de validación.</p>
       <div class="field autocomplete-wrap">
         <label>Nombre o RUT del cliente</label>
         <input type="text" id="clienteInput" placeholder="Escribe para buscar…" autocomplete="off">
@@ -287,9 +237,9 @@
       </div>
     </div>
 
-    <!-- STEP 2b: presupuesto original (adicional) -->
+    <!-- PASO 2b: presupuesto original (adicional) -->
     <div class="card" id="step2b" style="display:none;">
-      <div class="eyebrow">Paso 2 de 4</div>
+      <div class="eyebrow">Paso 2 de 5</div>
       <h2 class="step-title">Presupuesto original</h2>
       <p class="step-sub">¿A qué presupuesto original adjudicado pertenece este adicional?</p>
       <div class="field autocomplete-wrap">
@@ -304,39 +254,87 @@
       </div>
     </div>
 
-    <!-- STEP 3: ingeniero + nombre -->
+    <!-- PASO 3: ingeniero + nombre -->
     <div class="card" id="step3" style="display:none;">
-      <div class="eyebrow">Paso 3 de 4</div>
+      <div class="eyebrow">Paso 3 de 5</div>
       <h2 class="step-title">Ingeniero y nombre de obra</h2>
       <p class="step-sub">Selecciona el ingeniero responsable e ingresa el nombre del proyecto.</p>
       <div class="pill-row" id="ingenieroPills"></div>
       <div class="field" style="margin-top:16px;">
         <label>Nombre del proyecto / obra</label>
         <input type="text" id="nombreProyecto" placeholder="Ej: Cambio de tablero sala eléctrica">
-        <div class="hint">Se guarda junto al código en la planilla y da nombre a la carpeta en Drive.</div>
+        <div class="hint">Se guarda en la planilla y da nombre a la carpeta en Drive.</div>
       </div>
       <div class="btn-row">
         <button class="btn btn-ghost" onclick="goStepBack3()">Atrás</button>
-        <button class="btn btn-primary" id="step3Next" onclick="ejecutarGeneracion()" disabled>Generar y crear carpetas →</button>
+        <button class="btn btn-primary" id="step3Next" onclick="goStep(4)" disabled>Continuar →</button>
       </div>
     </div>
 
-    <!-- STEP 4: resultado -->
+    <!-- PASO 4: valores financieros -->
     <div class="card" id="step4" style="display:none;">
+      <div class="eyebrow">Paso 4 de 5</div>
+      <h2 class="step-title">Valores del presupuesto</h2>
+      <p class="step-sub">Todos los campos son obligatorios. El costo neto se calcula automáticamente.</p>
+      <div class="fin-grid">
+        <div class="fin-field">
+          <label>Materiales</label>
+          <input type="number" id="fMateriales" placeholder="0" min="0" step="1">
+          <div class="sub">Col. O</div>
+        </div>
+        <div class="fin-field">
+          <label>Mano de Obra</label>
+          <input type="number" id="fManoObra" placeholder="0" min="0" step="1">
+          <div class="sub">Col. P</div>
+        </div>
+        <div class="fin-field">
+          <label>Gastos Generales</label>
+          <input type="number" id="fGG" placeholder="0" min="0" step="1">
+          <div class="sub">Col. Q — se descuenta costo oficina</div>
+        </div>
+        <div class="fin-field">
+          <label>Costo Oficina</label>
+          <input type="number" id="fCO" placeholder="0" min="0" step="1">
+          <div class="sub">Col. R — incluido en GG</div>
+        </div>
+        <div class="fin-field">
+          <label>Utilidad</label>
+          <input type="number" id="fUtilidad" placeholder="0" min="0" step="1">
+          <div class="sub">Col. S</div>
+        </div>
+        <div class="fin-field" style="background:var(--teal-dim);border-color:var(--teal-light);">
+          <label style="color:var(--teal);">Costo Neto</label>
+          <input type="number" id="fCostoNeto" placeholder="0" readonly
+            style="background:transparent;border-color:transparent;font-size:17px;color:var(--teal);cursor:default;">
+          <div class="sub">Col. T — calculado automáticamente</div>
+        </div>
+      </div>
+      <div class="fin-resumen" id="finResumen" style="display:none;">
+        <div class="fin-resumen-row"><span class="k">Materiales</span><span class="v" id="rMat">—</span></div>
+        <div class="fin-resumen-row"><span class="k">Mano de Obra</span><span class="v" id="rMO">—</span></div>
+        <div class="fin-resumen-row"><span class="k">GG (neto s/oficina)</span><span class="v" id="rGG">—</span></div>
+        <div class="fin-resumen-row"><span class="k">Costo Oficina</span><span class="v" id="rCO">—</span></div>
+        <div class="fin-resumen-row"><span class="k">Utilidad</span><span class="v" id="rUtil">—</span></div>
+        <div class="fin-resumen-row"><span class="k">Costo Neto</span><span class="v" id="rNeto">—</span></div>
+      </div>
+      <div class="btn-row" style="margin-top:16px;">
+        <button class="btn btn-ghost" onclick="goStep(3)">Atrás</button>
+        <button class="btn btn-primary" id="step4Next" onclick="ejecutarGeneracion()" disabled>Generar código y carpetas →</button>
+      </div>
+    </div>
+
+    <!-- PASO 5: resultado -->
+    <div class="card" id="step5" style="display:none;">
       <div class="eyebrow">Listo</div>
       <h2 class="step-title">Código asignado</h2>
-      <div id="newClientBadgeWrap"></div>
-      <div class="result-code" id="resultCode">
-        <button class="copy-btn" onclick="copyCode()" title="Copiar">⧉</button>
+      <div id="badgeWrap"></div>
+      <div class="result-code">
+        <button class="copy-btn" onclick="copyCode()">⧉</button>
         <span id="resultCodeText">···</span>
       </div>
       <div class="breakdown" id="breakdownWrap"></div>
-
-      <div style="margin:16px 0 8px;">
-        <div class="eyebrow" style="margin-bottom:8px;">Carpetas creadas en Drive</div>
-        <div class="drive-progress" id="driveProgress"></div>
-      </div>
-
+      <div style="margin:14px 0 6px;"><div class="eyebrow" style="margin-bottom:8px;">Carpetas en Drive</div>
+        <div class="drive-progress" id="driveProgress"></div></div>
       <div class="btn-row" style="margin-top:18px;">
         <button class="btn btn-ghost" onclick="resetFlow()">Nuevo código</button>
         <button class="btn btn-primary" onclick="copyCode()">Copiar código</button>
@@ -346,7 +344,7 @@
   </div>
 </div>
 
-<!-- History modal -->
+<!-- Modal historial -->
 <div class="modal-back" id="historyModal" onclick="if(event.target===this)closeHistory()">
   <div class="modal-box">
     <button class="modal-close" onclick="closeHistory()">✕</button>

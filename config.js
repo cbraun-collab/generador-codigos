@@ -10,9 +10,9 @@ const CONFIG = {
   // Planilla maestra
   SPREADSHEET_ID: '1N6BmSf_3pjdmUmIcIl_BVknBi9sdvQBDKSgkxoCjIV0',
   SHEET_GENERAL: 'General',
-  SHEET_CENTRO_COSTOS: 'Centro de costos',
+  SHEET_CENTRO_COSTOS: 'Centros de Costos',
   RANGE_GENERAL_READ: 'General!A2:E1000',
-  RANGE_CC_READ: 'Centro de costos!A4:L3000',
+  RANGE_CC_READ: 'Centros de Costos!A4:T3000',
 
   // Carpeta raíz "obras" en Drive
   // https://drive.google.com/drive/folders/1Lm2X3Uz_H_sUkD7Zll0JjKPSdaa1EW9n
