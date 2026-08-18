@@ -41,14 +41,7 @@ function initAuth() {
     toast('Falta configurar el Client ID en config.js', true); return;
   }
 
-  // Google Identity renderiza el botón de "Continuar con Google"
-  google.accounts.id.initialize({ client_id: CONFIG.GOOGLE_CLIENT_ID, callback: () => {} });
-  google.accounts.id.renderButton(
-    document.getElementById('gSignInBtn'),
-    { theme: 'filled_blue', size: 'large', shape: 'pill', text: 'continue_with' }
-  );
-
-  // El token OAuth (con scopes de Sheets + Drive) lo pedimos aparte
+  // Inicializar tokenClient con todos los scopes necesarios
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CONFIG.GOOGLE_CLIENT_ID,
     scope: [
@@ -57,17 +50,32 @@ function initAuth() {
       'https://www.googleapis.com/auth/userinfo.profile',
     ].join(' '),
     callback: async (resp) => {
-      if (resp.error) { toast('No se pudo iniciar sesión.', true); return; }
+      if (resp.error) { toast('No se pudo iniciar sesión: ' + resp.error, true); return; }
       accessToken = resp.access_token;
       await onSignedIn();
     },
   });
 
-  // El botón visible de Google solo dispara el tokenClient
-  setTimeout(() => {
-    document.getElementById('gSignInBtn')
-      .addEventListener('click', () => tokenClient.requestAccessToken({ prompt: '' }));
-  }, 300);
+  // Renderizar botón propio — evita problemas con el iframe de Google Identity
+  document.getElementById('gSignInBtn').innerHTML = `
+    <button onclick="window._startAuth()" style="
+      display:inline-flex; align-items:center; gap:12px;
+      background:#fff; border:1.5px solid #DDE3E2; border-radius:999px;
+      padding:13px 28px; cursor:pointer; font-family:'Montserrat',sans-serif;
+      font-size:15px; font-weight:600; color:#1A1A1A;
+      box-shadow:0 2px 8px rgba(0,0,0,0.10); transition:box-shadow .15s;
+    " onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.18)'"
+       onmouseout="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.10)'">
+      <svg width="20" height="20" viewBox="0 0 48 48">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      </svg>
+      Continuar con Google
+    </button>`;
+
+  window._startAuth = () => tokenClient.requestAccessToken({ prompt: 'select_account' });
 }
 
 async function onSignedIn() {
