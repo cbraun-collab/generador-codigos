@@ -1,0 +1,13 @@
+{
+  "name": "Generador de Códigos SENERCOM",
+  "short_name": "Códigos SC",
+  "description": "Asigna códigos de presupuesto y crea carpetas en Drive automáticamente.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#F7F5F1",
+  "theme_color": "#003B49",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
