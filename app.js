@@ -289,7 +289,7 @@ function pickCliente(codigo, nombre, rut, isNew) {
   document.getElementById('clienteInput').value = `${codigo} ${nombre}`;
   document.getElementById('clienteList').classList.remove('show');
   document.getElementById('clienteHint').innerHTML = isNew
-    ? `<span class="badge badge-warn">⚠ Cliente nuevo · código ${codigo} pendiente validación</span>`
+    ? `<span class="badge badge-warn">⚠ Cliente nuevo · código ${codigo}</span>`
     : `Código: <strong>${codigo}</strong>`;
   document.getElementById('step2Next').disabled = false;
 }
@@ -449,42 +449,46 @@ async function guardarEnSheets(codigoFinal) {
     await sheetsAppend(CONFIG.SHEET_GENERAL, [
       '','','',`${state.cliente.codigo} ${state.cliente.nombre}`,
       state.cliente.rut||'','','','','','','','','',
-      `Pendiente validación ${CONFIG.VALIDADOR}`,'','',
+      '','','',
     ]);
     cacheGeneral.push({ codigo:state.cliente.codigo, nombre:state.cliente.nombre, rut:'' });
   }
 
   const fecha = formatFecha(new Date());
   const f = state.fin;
-  // Columnas A..T de Centro de Costos:
+  // Columnas exactas según encabezados de Centros de Costos:
   // A=Id, B=NombreProyecto, C=NombreCompleto, D=Cliente, E=Responsable,
-  // F=Fecha, G=Estado, H=TipoServicio, I=REV, J=ValorContrato,
-  // K=Estudió, L=Año, M=Multiplicador, N=Mes,
-  // O=Materiales, P=ManoObra, Q=GG(neto), R=CostoOficina, S=Utilidad, T=CostoNeto
+  // F=FechaSolicitud, G=FechaInicio, H=FechaEnvío, I=FechaAdj,
+  // J=Estado, K=TipoServicio, L=REV, M=FechaInicioTrab, N=FechaTermTrab,
+  // O=Materiales, P=ManoObra, Q=GG, R=CostoOficina, S=Utilidad,
+  // T=CostoNetoTotal, U=ValorContratoNeto, V=Estudió, W=Año
   const row = [
-    codigoFinal,                                    // A
-    state.nombreProyecto,                           // B
-    `${codigoFinal} ${state.nombreProyecto}`,       // C
-    `${state.cliente.codigo} ${state.cliente.nombre}`, // D
-    state.ingeniero.nombre,                         // E
-    fecha,                                          // F
-    `Pendiente validación ${CONFIG.VALIDADOR}`,     // G
-    '',                                             // H TipoServicio
-    '',                                             // I REV
-    '',                                             // J ValorContrato
-    state.ingeniero.nombre,                         // K Estudió
-    anioActual,                                     // L Año
-    '',                                             // M Multiplicador
-    '',                                             // N Mes
-    f.materiales||'',                               // O Materiales
-    f.manoObra||'',                                 // P Mano de Obra
-    f.ggNeto||'',                                   // Q GG neto
-    f.co||'',                                       // R Costo Oficina
-    f.utilidad||'',                                 // S Utilidad
-    f.costoNeto||'',                                // T Costo Neto
+    codigoFinal,                                        // A - Id
+    state.nombreProyecto,                               // B - Nombre Proyecto
+    `${codigoFinal} ${state.nombreProyecto}`,           // C - Nombre completo
+    `${state.cliente.codigo} ${state.cliente.nombre}`,  // D - Cliente
+    state.ingeniero.nombre,                             // E - Responsable
+    '',                                                 // F - Fecha Solicitud
+    '',                                                 // G - Fecha inicio
+    fecha,                                              // H - Fecha envío ✓
+    '',                                                 // I - Fecha adjudicación
+    'Esperando Respuesta',                              // J - Estado ✓
+    '',                                                 // K - Tipo de Servicio
+    1,                                                  // L - REV ✓
+    '',                                                 // M - Fecha inicio trabajos
+    '',                                                 // N - Fecha término trabajos
+    f.materiales||'',                                   // O - Materiales
+    f.manoObra||'',                                     // P - Mano de Obra
+    f.ggNeto||'',                                       // Q - GG (neto sin oficina)
+    f.co||'',                                           // R - Costo Oficina
+    f.utilidad||'',                                     // S - Utilidad
+    f.costoNeto||'',                                    // T - Costo Neto Total
+    f.costoNeto||'',                                    // U - Valor Contrato Neto
+    state.ingeniero.nombre,                             // V - Estudió
+    anioActual,                                         // W - Año
   ];
 
-  const result = await sheetsAppend(`${CONFIG.SHEET_CENTRO_COSTOS}!A:T`, row);
+  const result = await sheetsAppend(`${CONFIG.SHEET_CENTRO_COSTOS}!A:W`, row);
   cacheCentroCostos.push({
     id:codigoFinal, nombreProyecto:state.nombreProyecto,
     clienteCodigo:state.cliente.codigo, clienteNombre:state.cliente.nombre,
@@ -717,7 +721,7 @@ async function crearEstructuraCompleta(parentId, codigo) {
 function renderResultado(codigo) {
   document.getElementById('resultCodeText').textContent = codigo;
   document.getElementById('badgeWrap').innerHTML = state.cliente?.isNew
-    ? `<div style="margin-bottom:10px;"><span class="badge badge-warn">⚠ Cliente nuevo · pendiente validación ${CONFIG.VALIDADOR}</span></div>`
+    ? `<div style="margin-bottom:10px;"><span class="badge badge-warn">⚠ Cliente nuevo agregado</span></div>`
     : `<div style="margin-bottom:10px;"><span class="badge badge-good">✓ Guardado en planilla · fila marcada en amarillo</span></div>`;
 
   const f = state.fin;
