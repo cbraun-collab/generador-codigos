@@ -536,21 +536,25 @@ function renderDrive() {
 async function crearCarpetasDrive(codigoFinal) {
   driveRows = [];
   try {
-    const idxAnio = addDriveRow(`📅 ${anioActual}`);
-    const anioId = await driveEnsureFolder(String(anioActual), CONFIG.DRIVE_OBRAS_ROOT);
+    // 1) Encontrar carpeta del año actual buscando por nombre que contenga el año
+    const idxAnio = addDriveRow(`📅 Buscando carpeta del año ${anioActual}…`);
+    const anioId = await buscarCarpetaAnio();
     updDriveRow(idxAnio,'ok',anioId);
 
-    const nombreCli = `${state.cliente.codigo} ${state.cliente.nombre}`;
-    const idxCli = addDriveRow(`🏢 ${nombreCli}`);
-    const cliId = await driveEnsureFolder(nombreCli, anioId);
-    updDriveRow(idxCli,'ok',cliId);
+    // 2) Buscar carpeta del cliente dentro del año
+    const cliId = await resolverCarpetaCliente(anioId, codigoFinal);
+    if (!cliId) return; // usuario canceló
 
+    // 3) Crear estructura del presupuesto
     if (state.tipo==='O') {
       await crearEstructuraCompleta(cliId, codigoFinal);
     } else {
+      // Adicional: buscar carpeta del original dentro del cliente
       const codOrig = state.origPresupuesto.codigo;
       const idxO = addDriveRow(`🔗 Original: ${codOrig}`);
-      const origId = await driveEnsureFolder(codOrig, cliId);
+      // buscar por código o por "código nombre"
+      const origId = await driveEncontrarPorNombreParcial(codOrig, cliId)
+        || await driveEnsureFolder(codOrig, cliId);
       updDriveRow(idxO,'ok',origId);
       const idxE = addDriveRow('📂 02 - EJECUCIÓN PROYECTO');
       const ejecId = await driveEnsureFolder('02 - EJECUCIÓN PROYECTO', origId);
@@ -564,6 +568,124 @@ async function crearCarpetasDrive(codigoFinal) {
     console.error('Drive error:', e);
     toast('Código guardado, pero hubo un error en Drive: ' + e.message, true);
   }
+}
+
+/** Busca dentro de la raíz OBRAS la carpeta cuyo nombre contenga el año actual.
+ *  Si no existe, la crea con el nombre "PROYECTOS [año]". */
+async function buscarCarpetaAnio() {
+  const anioStr = String(anioActual);
+  // Listar todas las subcarpetas de la raíz
+  const carpetas = await driveListarCarpetas(CONFIG.DRIVE_OBRAS_ROOT);
+  // Buscar carpeta que contenga el año en su nombre
+  const match = carpetas.find(c => c.name.includes(anioStr));
+  if (match) return match.id;
+  // No existe → crear
+  return driveCreateFolder(`PROYECTOS ${anioStr}`, CONFIG.DRIVE_OBRAS_ROOT);
+}
+
+/** Busca la carpeta del cliente dentro de la carpeta del año.
+ *  - Si hay 1 coincidencia: pide confirmación al usuario.
+ *  - Si hay varias: muestra lista para que el usuario elija.
+ *  - Si no hay ninguna: crea la carpeta automáticamente.
+ *  Devuelve el ID de la carpeta elegida o null si el usuario canceló. */
+async function resolverCarpetaCliente(anioId, codigoFinal) {
+  const codigo = state.cliente.codigo;   // "002"
+  const nombre = state.cliente.nombre;   // "SALFA"
+  const carpetas = await driveListarCarpetas(anioId);
+
+  // Buscar coincidencias: nombre de carpeta contiene el código O el nombre del cliente
+  const matches = carpetas.filter(c => {
+    const cn = c.name.toUpperCase();
+    return cn.includes(codigo) || cn.includes(nombre.toUpperCase().slice(0,4));
+  });
+
+  if (matches.length === 0) {
+    // No existe → crear carpeta del cliente y continuar
+    const nombreNuevo = `${codigo} ${nombre}`;
+    const idxCli = addDriveRow(`🏢 Creando: ${nombreNuevo}`);
+    const cliId = await driveCreateFolder(nombreNuevo, anioId);
+    updDriveRow(idxCli,'ok',cliId);
+    return cliId;
+  }
+
+  // Existe al menos una coincidencia → pedir confirmación al usuario
+  return new Promise((resolve) => {
+    mostrarModalCarpeta(matches, codigo, nombre, anioId, resolve);
+  });
+}
+
+/** Muestra modal para que el usuario confirme/elija la carpeta del cliente. */
+function mostrarModalCarpeta(matches, codigo, nombre, anioId, resolve) {
+  const modal = document.getElementById('folderModal');
+  const content = document.getElementById('folderModalContent');
+
+  let html = `<p style="font-size:13px;color:var(--muted);margin:0 0 14px;">
+    Encontré ${matches.length > 1 ? 'estas carpetas' : 'esta carpeta'} para el cliente
+    <strong>${codigo} ${nombre}</strong>. ¿En cuál quieres guardar el presupuesto?</p>`;
+
+  html += matches.map((c,i) => `
+    <div class="folder-option" onclick="elegirCarpeta(${i})" data-idx="${i}">
+      <span>📁</span>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:13.5px;color:var(--teal)">${escH(c.name)}</div>
+      </div>
+      <span style="font-size:11px;color:var(--rust);font-weight:700">Elegir →</span>
+    </div>`).join('');
+
+  html += `<div class="folder-option" onclick="elegirCarpeta(-1)" style="border-color:var(--rust);margin-top:6px;">
+    <span>➕</span>
+    <div style="flex:1">
+      <div style="font-weight:700;font-size:13px;color:var(--rust)">Crear carpeta nueva: ${escH(codigo+' '+nombre)}</div>
+    </div>
+    <span style="font-size:11px;color:var(--rust);font-weight:700">Crear →</span>
+  </div>`;
+
+  content.innerHTML = html;
+  modal.classList.add('show');
+
+  // Guardar contexto para cuando el usuario elija
+  window._folderResolve = resolve;
+  window._folderMatches = matches;
+  window._folderAnioId  = anioId;
+  window._folderCodigo  = codigo;
+  window._folderNombre  = nombre;
+}
+
+async function elegirCarpeta(idx) {
+  document.getElementById('folderModal').classList.remove('show');
+  const { _folderResolve: resolve, _folderMatches: matches,
+          _folderAnioId: anioId, _folderCodigo: codigo, _folderNombre: nombre } = window;
+
+  let cliId;
+  if (idx === -1) {
+    // Crear nueva
+    const nombreNuevo = `${codigo} ${nombre}`;
+    const idxCli = addDriveRow(`🏢 Creando: ${nombreNuevo}`);
+    cliId = await driveCreateFolder(nombreNuevo, anioId);
+    updDriveRow(idxCli,'ok',cliId);
+  } else {
+    const elegida = matches[idx];
+    const idxCli = addDriveRow(`🏢 ${elegida.name}`);
+    cliId = elegida.id;
+    updDriveRow(idxCli,'ok',cliId);
+  }
+  resolve(cliId);
+}
+
+/** Lista todas las subcarpetas de un parent. */
+async function driveListarCarpetas(parentId) {
+  const q = `mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
+  const url = `${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!r.ok) throw new Error(`Drive listar carpetas: ${r.status}`);
+  return (await r.json()).files || [];
+}
+
+/** Busca una carpeta cuyo nombre contenga el término dado (sin distinción de mayúsculas). */
+async function driveEncontrarPorNombreParcial(termino, parentId) {
+  const carpetas = await driveListarCarpetas(parentId);
+  const m = carpetas.find(c => c.name.toUpperCase().includes(termino.toUpperCase()));
+  return m?.id || null;
 }
 
 async function crearEstructuraCompleta(parentId, codigo) {
