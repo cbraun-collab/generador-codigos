@@ -446,8 +446,15 @@ function validateStep3() {
 async function ejecutarGeneracion() {
   showLoading('Calculando correlativo…');
   try {
+    requireToken();
+
     // 1) Calcular código
     const codigoFinal = calcularCodigo();
+
+    // Validar formato antes de escribir
+    if (!validarCodigoFormato(codigoFinal)) {
+      throw new Error(`Código generado con formato inesperado: ${codigoFinal}. Contacta a Carlos Braun.`);
+    }
 
     // 2) Guardar en Sheets
     showLoading('Guardando en planilla…');
@@ -517,11 +524,13 @@ async function guardarEnSheets(codigoFinal) {
   }
 
   const fecha = formatFecha(new Date());
+  const nombreProy = sanitizeInput(state.nombreProyecto, 200);
+  const nombreCli  = sanitizeInput(state.cliente.nombre, 100);
   await sheetsAppend(CONFIG.SHEET_CENTRO_COSTOS, [
     codigoFinal,
-    state.nombreProyecto,
-    `${codigoFinal} ${state.nombreProyecto}`,
-    `${state.cliente.codigo} ${state.cliente.nombre}`,
+    nombreProy,
+    `${codigoFinal} ${nombreProy}`,
+    `${state.cliente.codigo} ${nombreCli}`,
     state.ingeniero.nombre,
     fecha,
     `Pendiente validación ${CONFIG.VALIDADOR}`,
@@ -701,7 +710,30 @@ function closeHistory() { document.getElementById('historyModal').classList.remo
 // UTILS
 // ============================================================
 function formatFecha(d) { return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; }
+
+// Escapa HTML para prevenir XSS en cualquier output dinámico
 function escHtml(s) {
   return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 function esc(s) { return String(s||'').replace(/'/g,"\\'"); }
+
+// Sanitiza texto libre antes de escribir en Sheets:
+// - Elimina fórmulas (=, +, -, @) al inicio (CSV/Sheet injection)
+// - Limita longitud máxima
+function sanitizeInput(s, maxLen = 200) {
+  let v = String(s || '').trim().slice(0, maxLen);
+  if (/^[=+\-@]/.test(v)) v = "'" + v;  // prefijo que Google Sheets interpreta como texto
+  return v;
+}
+
+// Valida que el código generado tenga el formato esperado antes de escribir
+function validarCodigoFormato(codigo) {
+  // Original:   001-001-O26-CB
+  // Adicional:  001-001-A26-CB-001
+  return /^\d{3}-\d{3}-[OA]\d{2}-[A-Z]{2,3}(-\d{3})?$/.test(codigo);
+}
+
+// Valida que el access token existe antes de hacer llamadas API
+function requireToken() {
+  if (!accessToken) throw new Error('Sesión expirada. Por favor recarga e inicia sesión nuevamente.');
+}
