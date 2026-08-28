@@ -114,7 +114,9 @@ async function sheetsGet(range) {
 }
 
 async function sheetsAppend(range, row) {
-  const url = `${SHEETS_API}/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+  // Usa valueInputOption=USER_ENTERED sin insertDataOption para NO insertar filas nuevas
+  // Solo sobreescribe en la primera fila vacía del rango
+  const url = `${SHEETS_API}/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`;
   const r = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -444,6 +446,19 @@ function validarCodigo(c) {
 }
 
 async function guardarEnSheets(codigoFinal) {
+  // PROTECCIÓN: verificar que no se supere el límite de filas para evitar escritura infinita
+  const MAX_FILAS = 3000;
+  const filaActual = (cacheCentroCostos || []).length + 4; // fila 4 = primera de datos
+  if (filaActual > MAX_FILAS) {
+    throw new Error(`Límite de seguridad alcanzado (${MAX_FILAS} filas). Contactar al administrador.`);
+  }
+
+  // PROTECCIÓN: verificar que el código no existe ya en la planilla
+  const codigoExistente = (cacheCentroCostos || []).find(p => p.id === codigoFinal);
+  if (codigoExistente) {
+    throw new Error(`El código ${codigoFinal} ya existe en la planilla. No se generó duplicado.`);
+  }
+
   // Si cliente nuevo, agregar a General
   if (state.cliente?.isNew) {
     await sheetsAppend(CONFIG.SHEET_GENERAL, [
@@ -488,7 +503,7 @@ async function guardarEnSheets(codigoFinal) {
     anioActual,                                         // W - Año
   ];
 
-  const result = await sheetsAppend(`${CONFIG.SHEET_CENTRO_COSTOS}!A:W`, row);
+  const result = await sheetsAppend(`${CONFIG.SHEET_CENTRO_COSTOS}!A4:W3000`, row);
   cacheCentroCostos.push({
     id:codigoFinal, nombreProyecto:state.nombreProyecto,
     clienteCodigo:state.cliente.codigo, clienteNombre:state.cliente.nombre,
@@ -781,6 +796,10 @@ function openHistory() {
   document.getElementById('historyModal').classList.add('show');
 }
 function closeHistory() { document.getElementById('historyModal').classList.remove('show'); }
+
+function toggleManual() {
+  document.getElementById('manualOverlay').classList.toggle('show');
+}
 
 // ============================================================
 // UTILS
