@@ -10,11 +10,12 @@ let accessToken  = null;
 
 // Estado del flujo actual
 let state = {
-  tipo: null,             // 'O' | 'A'
-  cliente: null,          // { codigo, nombre, rut, isNew }
-  origPresupuesto: null,  // { codigo, nombreProyecto, driveId } — solo si adicional
-  ingeniero: null,        // { iniciales, nombre }
+  tipo: null,
+  cliente: null,
+  origPresupuesto: null,
+  ingeniero: null,
   nombreProyecto: '',
+  fin: { materiales:0, manoObra:0, gg:0, co:0, utilidad:0, ggNeto:0, costoNeto:0 },
 };
 
 // Caché local de la planilla
@@ -305,7 +306,7 @@ function goStep(n) {
     document.getElementById(id).style.display = 'block';
   }
   if (n === 3) { document.getElementById('step3').style.display = 'block'; validateStep3(); }
-  if (n === 4) { document.getElementById('step4').style.display = 'block'; }
+  if (n === 4) { document.getElementById('step4').style.display = 'block'; recalcFin(); }
   updateStepDots(n);
 }
 
@@ -328,6 +329,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'clienteInput') renderClienteSugg(e.target.value);
   if (e.target.id === 'origInput')    renderOrigSugg(e.target.value);
   if (e.target.id === 'nombreProyecto') { state.nombreProyecto = e.target.value; validateStep3(); }
+  if (['fMateriales','fManoObra','fGG','fCO','fUtilidad'].includes(e.target.id)) recalcFin();
 });
 document.addEventListener('focus', e => {
   if (e.target.id === 'clienteInput') renderClienteSugg(e.target.value);
@@ -451,6 +453,41 @@ function validateStep3() {
 // ============================================================
 // GENERACIÓN PRINCIPAL
 // ============================================================
+// ============================================================
+// PASO 4 — FINANCIERO
+// ============================================================
+function recalcFin() {
+  const v = id => Math.max(0, parseFloat(document.getElementById(id)?.value) || 0);
+  const mat  = v('fMateriales');
+  const mo   = v('fManoObra');
+  const gg   = v('fGG');
+  const co   = v('fCO');
+  const util = v('fUtilidad');
+  const ggNeto = Math.max(0, gg - co);
+  const neto   = mat + mo + ggNeto + co + util;
+
+  const netoEl = document.getElementById('fCostoNeto');
+  if (netoEl) netoEl.value = neto > 0 ? neto.toFixed(0) : '';
+
+  state.fin = { materiales:mat, manoObra:mo, gg, co, utilidad:util, ggNeto, costoNeto:neto };
+
+  const fmt = x => x > 0 ? '$' + x.toLocaleString('es-CL') : '—';
+  const showRes = mat>0||mo>0||gg>0||co>0||util>0;
+  const resumen = document.getElementById('finResumen');
+  if (resumen) resumen.style.display = showRes ? 'block' : 'none';
+  if (showRes) {
+    document.getElementById('rMat').textContent  = fmt(mat);
+    document.getElementById('rMO').textContent   = fmt(mo);
+    document.getElementById('rGG').textContent   = fmt(ggNeto);
+    document.getElementById('rCO').textContent   = fmt(co);
+    document.getElementById('rUtil').textContent = fmt(util);
+    document.getElementById('rNeto').textContent = fmt(neto);
+  }
+  const allFilled = mat > 0 && mo > 0 && gg > 0 && co > 0 && util > 0;
+  const btn = document.getElementById('step4Next');
+  if (btn) btn.disabled = !allFilled;
+}
+
 async function ejecutarGeneracion() {
   // Deshabilitar el botón de inmediato para evitar doble clic
   const btnGenerar = document.getElementById('step4Next');
@@ -540,18 +577,34 @@ async function guardarEnSheets(codigoFinal) {
   const fecha = formatFecha(new Date());
   const nombreProy = sanitizeInput(state.nombreProyecto, 200);
   const nombreCli  = sanitizeInput(state.cliente.nombre, 100);
-  await sheetsAppend(CONFIG.SHEET_CENTRO_COSTOS, [
-    codigoFinal,
-    nombreProy,
-    `${codigoFinal} ${nombreProy}`,
-    `${state.cliente.codigo} ${nombreCli}`,
-    state.ingeniero.nombre,
-    fecha,
-    `Pendiente validación ${CONFIG.VALIDADOR}`,
-    '','','',
-    state.ingeniero.nombre,
-    anioActual,
-  ]);
+  const f = state.fin || {};
+  // Columnas A..W según encabezados reales de Centros de Costos
+  const row = [
+    codigoFinal,                                      // A Id
+    nombreProy,                                       // B Nombre Proyecto
+    `${codigoFinal} ${nombreProy}`,                   // C Nombre completo
+    `${state.cliente.codigo} ${nombreCli}`,           // D Cliente
+    state.ingeniero.nombre,                           // E Responsable
+    '',                                               // F Fecha Solicitud
+    '',                                               // G Fecha inicio
+    fecha,                                            // H Fecha envío ✓
+    '',                                               // I Fecha adjudicación
+    'Esperando Respuesta',                            // J Estado ✓
+    '',                                               // K Tipo Servicio
+    1,                                                // L REV ✓
+    '',                                               // M Fecha inicio trab.
+    '',                                               // N Fecha término trab.
+    f.materiales || '',                               // O Materiales
+    f.manoObra   || '',                               // P Mano de Obra
+    f.ggNeto     || '',                               // Q GG neto
+    f.co         || '',                               // R Costo Oficina
+    f.utilidad   || '',                               // S Utilidad
+    f.costoNeto  || '',                               // T Costo Neto Total
+    f.costoNeto  || '',                               // U Valor Contrato Neto
+    state.ingeniero.nombre,                           // V Estudió
+    anioActual,                                       // W Año
+  ];
+  await sheetsAppend(`${CONFIG.SHEET_CENTRO_COSTOS}!A4:W3000`, row);
 
   cacheCentroCostos.push({
     id: codigoFinal, nombreProyecto: state.nombreProyecto,
@@ -864,7 +917,8 @@ function copyCode() {
 }
 
 function resetFlow() {
-  state = { tipo:null, cliente:null, origPresupuesto:null, ingeniero:null, nombreProyecto:'' };
+  state = { tipo:null, cliente:null, origPresupuesto:null, ingeniero:null, nombreProyecto:'',
+    fin:{ materiales:0, manoObra:0, gg:0, co:0, utilidad:0, ggNeto:0, costoNeto:0 } };
   driveRows = [];
   ['clienteInput','origInput','nombreProyecto'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
   ['clienteHint','origHint'].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML=''; });
