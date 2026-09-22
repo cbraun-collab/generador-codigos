@@ -649,8 +649,10 @@ async function crearCarpetasDrive(codigoFinal) {
     updDriveRow(idxAnio, 'ok', anioId);
 
     // ── 2. Carpeta del cliente: busca por código ("001") ─────────────────────
-    const cliId = await resolverCarpetaCliente(anioId);
-    if (!cliId) return; // usuario canceló o error
+  // Ocultar loading ANTES de mostrar el modal de selección de carpeta
+  hideLoading();
+  const cliId = await resolverCarpetaCliente(anioId);
+  if (!cliId) return; // usuario canceló o error
 
     // ── 3. Estructura del presupuesto ────────────────────────────────────────
     if (state.tipo === 'O') {
