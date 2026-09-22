@@ -454,8 +454,7 @@ function validateStep3() {
 async function ejecutarGeneracion() {
   // Deshabilitar el botón de inmediato para evitar doble clic
   const btnGenerar = document.getElementById('step4Next');
-  btnGenerar.disabled = true;
-  btnGenerar.textContent = 'Procesando…';
+  if (btnGenerar) { btnGenerar.disabled = true; btnGenerar.textContent = 'Procesando…'; }
 
   showLoading('Calculando correlativo…');
   try {
@@ -491,8 +490,7 @@ async function ejecutarGeneracion() {
     console.error(e);
     hideLoading();
     // Rehabilitar botón para que el usuario pueda reintentar
-    btnGenerar.disabled = false;
-    btnGenerar.textContent = 'Generar código y carpetas →';
+    if (btnGenerar) { btnGenerar.disabled = false; btnGenerar.textContent = 'Generar código y carpetas →'; }
     toast('Error: ' + e.message, true);
   }
 }
