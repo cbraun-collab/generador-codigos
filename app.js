@@ -701,34 +701,17 @@ async function buscarCarpetaAnio() {
   return id;
 }
 
-/** Busca la carpeta del cliente dentro del año:
- *  1. Por código exacto ("001")
- *  2. Si no → por nombre parcial ("BRAVOIZQUIERDO")
- *  3. Si no → pregunta si es empresa nueva */
+/** Muestra TODAS las carpetas del año para que el usuario elija.
+ *  Sin filtros — el usuario decide cuál corresponde o crea una nueva. */
 async function resolverCarpetaCliente(anioId) {
-  const codigo  = state.cliente.codigo;   // "001"
-  const nombre  = state.cliente.nombre;   // "BRAVOIZQUIERDO"
+  const codigo   = state.cliente.codigo;
+  const nombre   = state.cliente.nombre;
   const carpetas = await driveListarCarpetas(anioId);
 
-  // 1. Buscar por código
-  let matches = carpetas.filter(c => {
-    const cn = c.name.toUpperCase();
-    return cn.startsWith(codigo) || cn.includes(' ' + codigo + ' ') || cn.match(new RegExp('^0*' + parseInt(codigo)));
-  });
+  // Ordenar alfabéticamente para facilitar búsqueda visual
+  carpetas.sort((a, b) => a.name.localeCompare(b.name, 'es'));
 
-  // 2. Si no encontró por código → buscar por nombre (primeras 4+ letras)
-  if (matches.length === 0 && nombre.length >= 3) {
-    const nombreBusq = nombre.toUpperCase().slice(0, 5);
-    matches = carpetas.filter(c => c.name.toUpperCase().includes(nombreBusq));
-  }
-
-  if (matches.length > 0) {
-    // Encontró coincidencias → confirmar con el usuario
-    return new Promise(resolve => mostrarModalCarpeta(matches, codigo, nombre, anioId, resolve));
-  }
-
-  // 3. No encontró nada → preguntar si es empresa nueva
-  return new Promise(resolve => mostrarModalEmpresaNueva(codigo, nombre, anioId, resolve));
+  return new Promise(resolve => mostrarModalCarpeta(carpetas, codigo, nombre, anioId, resolve));
 }
 
 /** Modal cuando no se encuentra carpeta: ¿empresa nueva o error? */
@@ -794,12 +777,8 @@ function mostrarModalCarpeta(matches, codigo, nombre, anioId, resolve) {
   const modal   = document.getElementById('folderModal');
   const content = document.getElementById('folderModalContent');
 
-  let html = `<p style="font-size:13px;color:var(--muted);margin:0 0 14px;">
-    Encontré ${matches.length > 1 ? 'estas carpetas' : 'esta carpeta'} para el cliente
-    <strong>${codigo} ${nombre}</strong>. ¿Es la correcta?</p>`;
-
-  html += matches.map((c, i) => `
-    <div class="folder-option" onclick="elegirCarpeta(${i})">
+  const itemsHtml = matches.map((c, i) => `
+    <div class="folder-option folder-item" onclick="elegirCarpeta(${i})" data-name="${c.name.toUpperCase()}">
       <span>📁</span>
       <div style="flex:1">
         <div style="font-weight:700;font-size:13.5px;color:var(--teal)">${escHtml(c.name)}</div>
@@ -807,21 +786,42 @@ function mostrarModalCarpeta(matches, codigo, nombre, anioId, resolve) {
       <span style="font-size:11px;color:var(--rust);font-weight:700">Usar esta →</span>
     </div>`).join('');
 
-  html += `<div class="folder-option" onclick="elegirCarpeta(-1)" style="border-color:var(--rust);margin-top:6px;">
-    <span>❓</span>
-    <div style="flex:1">
-      <div style="font-weight:700;font-size:13px;color:var(--rust)">Ninguna de estas — es una empresa nueva</div>
+  content.innerHTML = `
+    <p style="font-size:13px;color:var(--muted);margin:0 0 10px;">
+      Presupuesto para <strong>${escHtml(codigo)} ${escHtml(nombre)}</strong>.
+      Elige la carpeta del cliente donde se guardará:
+    </p>
+    <input type="text" id="folderSearch" placeholder="🔍 Escribe para filtrar carpetas…"
+      style="width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:9px;
+             font-size:13px;font-family:inherit;margin-bottom:10px;"
+      oninput="filtrarCarpetas(this.value)">
+    <div id="folderList" style="max-height:340px;overflow-y:auto;">
+      ${itemsHtml}
     </div>
-  </div>`;
+    <div class="folder-option" onclick="elegirCarpeta(-1)"
+      style="border-color:var(--rust);margin-top:10px;position:sticky;bottom:0;background:#fff;">
+      <span>➕</span>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:13px;color:var(--rust)">No está en la lista — crear carpeta nueva</div>
+      </div>
+    </div>`;
 
-  content.innerHTML = html;
   modal.classList.add('show');
+  // Foco automático en el buscador
+  setTimeout(() => document.getElementById('folderSearch')?.focus(), 100);
 
   window._folderResolve = resolve;
   window._folderMatches = matches;
   window._folderAnioId  = anioId;
   window._folderCodigo  = codigo;
   window._folderNombre  = nombre;
+}
+
+function filtrarCarpetas(q) {
+  const busq = q.toUpperCase().trim();
+  document.querySelectorAll('#folderList .folder-item').forEach(el => {
+    el.style.display = el.dataset.name.includes(busq) ? 'flex' : 'none';
+  });
 }
 
 async function elegirCarpeta(idx) {
