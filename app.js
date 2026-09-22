@@ -887,7 +887,7 @@ function renderResultBase(codigo) {
   document.getElementById('resultCodeText').textContent = codigo;
 
   const isNuevo = state.cliente?.isNew;
-  document.getElementById('newClientBadgeWrap').innerHTML = isNuevo
+  document.getElementById('badgeWrap').innerHTML = isNuevo
     ? `<div style="margin-bottom:10px;"><span class="badge badge-warn">⚠ Cliente nuevo · pendiente validación de ${CONFIG.VALIDADOR}</span></div>`
     : `<div style="margin-bottom:10px;"><span class="badge badge-good">✓ Guardado en planilla · pendiente validación CB</span></div>`;
 
