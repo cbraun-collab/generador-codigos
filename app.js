@@ -489,7 +489,6 @@ function recalcFin() {
 }
 
 async function ejecutarGeneracion() {
-  // Deshabilitar el botón de inmediato para evitar doble clic
   const btnGenerar = document.getElementById('step4Next');
   if (btnGenerar) { btnGenerar.disabled = true; btnGenerar.textContent = 'Procesando…'; }
 
@@ -497,23 +496,21 @@ async function ejecutarGeneracion() {
   try {
     requireToken();
 
-    // 1) Calcular código
     const codigoFinal = calcularCodigo();
-
-    // Validar formato antes de escribir
     if (!validarCodigoFormato(codigoFinal)) {
-      throw new Error(`Código generado con formato inesperado: ${codigoFinal}. Contacta a Carlos Braun.`);
+      throw new Error(`Código generado con formato inesperado: ${codigoFinal}.`);
     }
 
-    // 2) Guardar en Sheets
     showLoading('Guardando en planilla…');
     await guardarEnSheets(codigoFinal);
+    await marcarFilaColor();
 
-    // 3) Crear carpetas en Drive (con feedback visual)
-    goStep(4);
-    renderResultBase(codigoFinal);
+    // Ir al paso 5 y ocultar loading ANTES de Drive (para que el modal sea visible)
+    goStep(5);
+    renderResultado(codigoFinal);
     hideLoading();
 
+    // Crear carpetas (puede mostrar modal de selección)
     await crearCarpetasDrive(codigoFinal);
 
     todayHistory.unshift({
@@ -526,7 +523,6 @@ async function ejecutarGeneracion() {
   } catch(e) {
     console.error(e);
     hideLoading();
-    // Rehabilitar botón para que el usuario pueda reintentar
     if (btnGenerar) { btnGenerar.disabled = false; btnGenerar.textContent = 'Generar código y carpetas →'; }
     toast('Error: ' + e.message, true);
   }
@@ -856,9 +852,10 @@ async function driveListarCarpetas(parentId) {
 }
 
 async function crearEstructuraCompleta(parentId, codigoPpto) {
-  // Carpeta raíz del presupuesto
-  const idxRoot = addDriveRow(`📁 ${codigoPpto}`);
-  const rootId  = await driveEnsureFolder(codigoPpto, parentId);
+  // Carpeta raíz del presupuesto: código + nombre de obra
+  const nombreCarpeta = `${codigoPpto} ${state.nombreProyecto}`.slice(0, 150);
+  const idxRoot = addDriveRow(`📁 ${nombreCarpeta}`);
+  const rootId  = await driveEnsureFolder(nombreCarpeta, parentId);
   updDriveRow(idxRoot, 'ok', rootId);
 
   // 01 - ESTUDIO PROYECTO
@@ -885,6 +882,10 @@ async function crearEstructuraCompleta(parentId, codigoPpto) {
 // ============================================================
 // RESULTADO VISUAL
 // ============================================================
+// Alias para compatibilidad
+function renderResultado(codigo) { renderResultBase(codigo); }
+async function marcarFilaColor() { /* color amarillo — implementado en guardarEnSheets */ }
+
 function renderResultBase(codigo) {
   document.getElementById('resultCodeText').textContent = codigo;
 
