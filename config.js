@@ -15,8 +15,10 @@ const CONFIG = {
   RANGE_CC_READ: 'Centros de Costos!A4:T3000',
 
   // Carpeta raíz "obras" en Drive
-  // https://drive.google.com/drive/folders/1Lm2X3Uz_H_sUkD7Zll0JjKPSdaa1EW9n
   DRIVE_OBRAS_ROOT: '1Lm2X3Uz_H_sUkD7Zll0JjKPSdaa1EW9n',
+
+  // Carpeta "pendientes" para clientes sin carpeta asignada aún
+  DRIVE_PENDIENTES: '14seaVDIBeeWWLQ9ewLCcrl0qTHzRBPpK',
 
   // Ingenieros activos — agrega o quita sin tocar app.js
   INGENIEROS: [

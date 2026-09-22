@@ -571,7 +571,7 @@ function addDriveRow(label) {
   renderDriveProgress();
   return idx;
 }
-function updateDriveRow(idx, status, id) {
+function updDriveRow(idx, status, id) {
   driveRows[idx].status = status;
   driveRows[idx].id = id;
   renderDriveProgress();
@@ -590,36 +590,32 @@ async function crearCarpetasDrive(codigoFinal) {
   driveRows = [];
 
   try {
-    // ── Carpeta del año ────────────────────────────────────────
-    const idxAnio = addDriveRow(`📅 ${anioActual}`);
-    const anioId  = await driveEnsureFolder(String(anioActual), CONFIG.DRIVE_OBRAS_ROOT);
-    updateDriveRow(idxAnio, 'ok', anioId);
+    // ── 1. Carpeta del año: busca la que contenga "PROYECTOS" + año ──────────
+    const idxAnio = addDriveRow(`📅 Buscando carpeta ${anioActual}…`);
+    const anioId  = await buscarCarpetaAnio();
+    updDriveRow(idxAnio, 'ok', anioId);
 
-    // ── Carpeta del cliente ────────────────────────────────────
-    const nombreCliente = `${state.cliente.codigo} ${state.cliente.nombre}`;
-    const idxCli  = addDriveRow(`🏢 ${nombreCliente}`);
-    const cliId   = await driveEnsureFolder(nombreCliente, anioId);
-    updateDriveRow(idxCli, 'ok', cliId);
+    // ── 2. Carpeta del cliente: busca por código ("001") ─────────────────────
+    const cliId = await resolverCarpetaCliente(anioId);
+    if (!cliId) return; // usuario canceló o error
 
+    // ── 3. Estructura del presupuesto ────────────────────────────────────────
     if (state.tipo === 'O') {
-      // ── Original: carpeta del presupuesto + estructura completa
       await crearEstructuraCompleta(cliId, codigoFinal);
     } else {
-      // ── Adicional: buscar carpeta del original → Ejecución → 04 ADICIONALES
-      const codOrig      = state.origPresupuesto.codigo;
-      const idxOrigFold  = addDriveRow(`🔗 Ubicando original: ${codOrig}`);
-      const origRootId   = await driveEnsureFolder(codOrig, cliId);
-      updateDriveRow(idxOrigFold, 'ok', origRootId);
+      const codOrig     = state.origPresupuesto.codigo;
+      const idxOrigFold = addDriveRow(`🔗 Ubicando original: ${codOrig}`);
+      const origRootId  = await driveEnsureFolder(codOrig, cliId);
+      updDriveRow(idxOrigFold, 'ok', origRootId);
 
       const idxEjec = addDriveRow('📂 02 - EJECUCIÓN PROYECTO');
       const ejecId  = await driveEnsureFolder('02 - EJECUCIÓN PROYECTO', origRootId);
-      updateDriveRow(idxEjec, 'ok', ejecId);
+      updDriveRow(idxEjec, 'ok', ejecId);
 
       const idxAdics = addDriveRow('📂 04 - ADICIONALES');
       const adicsId  = await driveEnsureFolder('04 - ADICIONALES', ejecId);
-      updateDriveRow(idxAdics, 'ok', adicsId);
+      updDriveRow(idxAdics, 'ok', adicsId);
 
-      // Carpeta del adicional con su propia estructura Estudio + Ejecución
       await crearEstructuraCompleta(adicsId, codigoFinal);
     }
   } catch(e) {
@@ -628,30 +624,206 @@ async function crearCarpetasDrive(codigoFinal) {
   }
 }
 
+/** Busca dentro de la raíz OBRAS la carpeta cuyo nombre contenga
+ *  "PROYECTOS" y el año actual. Si no existe, la crea. */
+async function buscarCarpetaAnio() {
+  const anioStr  = String(anioActual);
+  const carpetas = await driveListarCarpetas(CONFIG.DRIVE_OBRAS_ROOT);
+
+  // Busca carpeta que contenga "PROYECTOS" Y el año (ej: "03 PROYECTOS 2026")
+  const match = carpetas.find(c => {
+    const n = c.name.toUpperCase();
+    return n.includes('PROYECTOS') && n.includes(anioStr);
+  });
+
+  if (match) return match.id;
+
+  // No existe → crear con formato estándar
+  const nuevas   = carpetas.filter(c => c.name.toUpperCase().includes('PROYECTOS'));
+  const numSig   = String(nuevas.length + 1).padStart(2, '0');
+  const nombreNuevo = `${numSig} PROYECTOS ${anioStr}`;
+  const idxCrear = addDriveRow(`📅 Creando: ${nombreNuevo}`);
+  const id       = await driveCreateFolder(nombreNuevo, CONFIG.DRIVE_OBRAS_ROOT);
+  updDriveRow(idxCrear, 'ok', id);
+  return id;
+}
+
+/** Busca la carpeta del cliente dentro del año:
+ *  1. Por código exacto ("001")
+ *  2. Si no → por nombre parcial ("BRAVOIZQUIERDO")
+ *  3. Si no → pregunta si es empresa nueva */
+async function resolverCarpetaCliente(anioId) {
+  const codigo  = state.cliente.codigo;   // "001"
+  const nombre  = state.cliente.nombre;   // "BRAVOIZQUIERDO"
+  const carpetas = await driveListarCarpetas(anioId);
+
+  // 1. Buscar por código
+  let matches = carpetas.filter(c => {
+    const cn = c.name.toUpperCase();
+    return cn.startsWith(codigo) || cn.includes(' ' + codigo + ' ') || cn.match(new RegExp('^0*' + parseInt(codigo)));
+  });
+
+  // 2. Si no encontró por código → buscar por nombre (primeras 4+ letras)
+  if (matches.length === 0 && nombre.length >= 3) {
+    const nombreBusq = nombre.toUpperCase().slice(0, 5);
+    matches = carpetas.filter(c => c.name.toUpperCase().includes(nombreBusq));
+  }
+
+  if (matches.length > 0) {
+    // Encontró coincidencias → confirmar con el usuario
+    return new Promise(resolve => mostrarModalCarpeta(matches, codigo, nombre, anioId, resolve));
+  }
+
+  // 3. No encontró nada → preguntar si es empresa nueva
+  return new Promise(resolve => mostrarModalEmpresaNueva(codigo, nombre, anioId, resolve));
+}
+
+/** Modal cuando no se encuentra carpeta: ¿empresa nueva o error? */
+function mostrarModalEmpresaNueva(codigo, nombre, anioId, resolve) {
+  const modal   = document.getElementById('folderModal');
+  const content = document.getElementById('folderModalContent');
+
+  content.innerHTML = `
+    <p style="font-size:13.5px;color:var(--ink);margin:0 0 12px;">
+      No se encontró carpeta para <strong>${escHtml(codigo)} ${escHtml(nombre)}</strong>
+      en la carpeta del año ${anioActual}.
+    </p>
+    <div class="manual-warn" style="margin-bottom:16px;">
+      ⚠️ Si esta empresa aún no tiene carpeta asignada, primero completa su información
+      en el formulario de clientes:
+      <br><br>
+      <a href="https://docs.google.com/forms/d/e/1FAIpQLSd482f2fzg6wvUksritueM6fiqfuSESLxC4ViO4kp5pW3z3tA/viewform?usp=header"
+         target="_blank"
+         style="color:var(--rust);font-weight:700;word-break:break-all;">
+        📋 Abrir formulario de ingreso de clientes ↗
+      </a>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 14px;">¿Qué deseas hacer ahora?</p>
+
+    <div class="folder-option" onclick="crearCarpetaNuevaEmpresa('${escHtml(codigo)}','${escHtml(nombre)}','${anioId}')">
+      <span>➕</span>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:13.5px;color:var(--teal)">Crear carpeta <strong>${escHtml(codigo)} ${escHtml(nombre)}</strong> ahora y continuar</div>
+        <div style="font-size:11.5px;color:var(--muted)">Recuerda completar el formulario después</div>
+      </div>
+    </div>
+
+    <div class="folder-option" onclick="cerrarModalSinCarpeta()" style="margin-top:8px;border-color:var(--line);">
+      <span>✕</span>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:13px;color:var(--muted)">Cancelar — volver al inicio</div>
+      </div>
+    </div>`;
+
+  modal.classList.add('show');
+  window._folderResolveNueva = resolve;
+  window._folderAnioIdNueva  = anioId;
+}
+
+async function crearCarpetaNuevaEmpresa(codigo, nombre, anioId) {
+  document.getElementById('folderModal').classList.remove('show');
+  const idxCli = addDriveRow(`🏢 Creando: ${codigo} ${nombre}`);
+  const cliId  = await driveCreateFolder(`${codigo} ${nombre}`, anioId);
+  updDriveRow(idxCli, 'ok', cliId);
+  toast(`Carpeta "${codigo} ${nombre}" creada. Recuerda completar el formulario de clientes.`);
+  window._folderResolveNueva(cliId);
+}
+
+function cerrarModalSinCarpeta() {
+  document.getElementById('folderModal').classList.remove('show');
+  hideLoading();
+  toast('Operación cancelada. Completa el formulario de clientes antes de continuar.', true);
+  window._folderResolveNueva(null);
+}
+
+/** Muestra modal para que el usuario confirme/elija la carpeta del cliente. */
+function mostrarModalCarpeta(matches, codigo, nombre, anioId, resolve) {
+  const modal   = document.getElementById('folderModal');
+  const content = document.getElementById('folderModalContent');
+
+  let html = `<p style="font-size:13px;color:var(--muted);margin:0 0 14px;">
+    Encontré ${matches.length > 1 ? 'estas carpetas' : 'esta carpeta'} para el cliente
+    <strong>${codigo} ${nombre}</strong>. ¿Es la correcta?</p>`;
+
+  html += matches.map((c, i) => `
+    <div class="folder-option" onclick="elegirCarpeta(${i})">
+      <span>📁</span>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:13.5px;color:var(--teal)">${escHtml(c.name)}</div>
+      </div>
+      <span style="font-size:11px;color:var(--rust);font-weight:700">Usar esta →</span>
+    </div>`).join('');
+
+  html += `<div class="folder-option" onclick="elegirCarpeta(-1)" style="border-color:var(--rust);margin-top:6px;">
+    <span>❓</span>
+    <div style="flex:1">
+      <div style="font-weight:700;font-size:13px;color:var(--rust)">Ninguna de estas — es una empresa nueva</div>
+    </div>
+  </div>`;
+
+  content.innerHTML = html;
+  modal.classList.add('show');
+
+  window._folderResolve = resolve;
+  window._folderMatches = matches;
+  window._folderAnioId  = anioId;
+  window._folderCodigo  = codigo;
+  window._folderNombre  = nombre;
+}
+
+async function elegirCarpeta(idx) {
+  document.getElementById('folderModal').classList.remove('show');
+  const { _folderResolve: resolve, _folderMatches: matches,
+          _folderCodigo: codigo, _folderNombre: nombre,
+          _folderAnioId: anioId } = window;
+
+  let cliId;
+  if (idx === -1) {
+    // No corresponde ninguna → mostrar modal de empresa nueva
+    mostrarModalEmpresaNueva(codigo, nombre, anioId, resolve);
+    return;
+  } else {
+    const elegida = matches[idx];
+    const idxCli  = addDriveRow(`🏢 ${elegida.name}`);
+    cliId = elegida.id;
+    updDriveRow(idxCli, 'ok', cliId);
+  }
+  resolve(cliId);
+}
+
+/** Lista todas las subcarpetas de un parentId */
+async function driveListarCarpetas(parentId) {
+  const q   = `mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
+  const url = `${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+  const r   = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!r.ok) throw new Error(`Drive listar carpetas: ${r.status}`);
+  return (await r.json()).files || [];
+}
+
 async function crearEstructuraCompleta(parentId, codigoPpto) {
   // Carpeta raíz del presupuesto
   const idxRoot = addDriveRow(`📁 ${codigoPpto}`);
   const rootId  = await driveEnsureFolder(codigoPpto, parentId);
-  updateDriveRow(idxRoot, 'ok', rootId);
+  updDriveRow(idxRoot, 'ok', rootId);
 
   // 01 - ESTUDIO PROYECTO
   const idxEst = addDriveRow('📂 01 - ESTUDIO PROYECTO');
   const estId  = await driveEnsureFolder('01 - ESTUDIO PROYECTO', rootId);
-  updateDriveRow(idxEst, 'ok', estId);
+  updDriveRow(idxEst, 'ok', estId);
   for (const sub of CONFIG.SUBCARPETAS_ESTUDIO) {
     const idx = addDriveRow(`   └ ${sub}`);
     const id  = await driveEnsureFolder(sub, estId);
-    updateDriveRow(idx, 'ok', id);
+    updDriveRow(idx, 'ok', id);
   }
 
   // 02 - EJECUCIÓN PROYECTO
   const idxEjec = addDriveRow('📂 02 - EJECUCIÓN PROYECTO');
   const ejecId  = await driveEnsureFolder('02 - EJECUCIÓN PROYECTO', rootId);
-  updateDriveRow(idxEjec, 'ok', ejecId);
+  updDriveRow(idxEjec, 'ok', ejecId);
   for (const sub of CONFIG.SUBCARPETAS_EJECUCION) {
     const idx = addDriveRow(`   └ ${sub}`);
     const id  = await driveEnsureFolder(sub, ejecId);
-    updateDriveRow(idx, 'ok', id);
+    updDriveRow(idx, 'ok', id);
   }
 }
 
