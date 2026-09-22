@@ -293,8 +293,9 @@ function updateStepDots(n) {
 }
 
 function hideAllSteps() {
-  ['step1','step2','step2b','step3','step4'].forEach(id => {
-    document.getElementById(id).style.display = 'none';
+  ['step1','step2','step2b','step3','step4','step5'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
   });
 }
 
@@ -307,6 +308,7 @@ function goStep(n) {
   }
   if (n === 3) { document.getElementById('step3').style.display = 'block'; validateStep3(); }
   if (n === 4) { document.getElementById('step4').style.display = 'block'; recalcFin(); }
+  if (n === 5) { document.getElementById('step5').style.display = 'block'; }
   updateStepDots(n);
 }
 
