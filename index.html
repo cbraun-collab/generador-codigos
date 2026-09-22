@@ -4,222 +4,242 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#003B49">
-<meta name="description" content="Generador de códigos de presupuesto SENERCOM">
+<meta name="description" content="Generador de códigos de presupuesto SENERCOM — asigna correlativos y crea carpetas en Drive.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://*.googleusercontent.com; connect-src https://sheets.googleapis.com https://www.googleapis.com https://accounts.google.com https://drive.googleapis.com; frame-src https://accounts.google.com;">
 <title>Generador de Códigos · SENERCOM</title>
 <link rel="manifest" href="manifest.json">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Montserrat:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
-:root{
-  --ink:#0A1A1D;--teal:#003B49;--teal-light:#0B5563;--teal-dim:#E8EEEF;
-  --rust:#CF4520;--rust-light:#E8693F;--paper:#F7F5F1;--card:#FFFFFF;
-  --line:#DDE3E2;--good:#1F7A52;--good-bg:#E7F4ED;--warn:#B9760A;
-  --warn-bg:#FBF1DD;--muted:#6B7B7C;--radius:14px;
-  --shadow:0 1px 2px rgba(10,26,29,0.04),0 8px 24px -12px rgba(10,26,29,0.18);
-}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-html,body{margin:0;padding:0;}
-body{font-family:'Montserrat',system-ui,sans-serif;
-  background:radial-gradient(800px 400px at 100% -10%,rgba(207,69,32,0.06),transparent 60%),var(--paper);
-  color:var(--ink);min-height:100vh;padding-bottom:48px;}
-.topbar{position:sticky;top:0;z-index:40;background:var(--teal);color:#fff;
-  padding:12px 18px;display:flex;align-items:center;justify-content:space-between;
-  box-shadow:0 4px 16px -8px rgba(0,0,0,0.4);}
-.brand{display:flex;align-items:center;gap:10px;}
-.brand img{height:26px;filter:brightness(0) invert(1);}
-.brand span{font-size:10.5px;color:rgba(255,255,255,0.65);letter-spacing:0.4px;text-transform:uppercase;}
-.user-chip{display:flex;align-items:center;gap:8px;font-size:12.5px;color:rgba(255,255,255,0.85);}
-#userAvatar{width:26px;height:26px;border-radius:50%;display:none;border:1.5px solid rgba(255,255,255,0.4);}
-.icon-btn{background:rgba(255,255,255,0.12);border:none;color:#fff;width:32px;height:32px;
-  border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
-.icon-btn:hover{background:rgba(255,255,255,0.22);}
-.shell{max-width:640px;margin:0 auto;padding:20px 16px 0;}
-.signin-screen{max-width:420px;margin:14vh auto 0;padding:0 20px;text-align:center;}
-.signin-screen img{height:52px;margin-bottom:20px;}
-.signin-screen h1{font-family:'Space Grotesk',sans-serif;font-size:22px;margin:0 0 6px;color:var(--teal);}
-.signin-screen p{color:var(--muted);font-size:14px;margin:0 0 28px;line-height:1.5;}
-#gSignInBtn{display:flex;justify-content:center;}
-.steps{display:flex;align-items:center;gap:6px;margin-bottom:22px;}
-.step-dot{flex:1;height:4px;border-radius:3px;background:var(--line);transition:background .25s;}
-.step-dot.active{background:var(--rust);}
-.step-dot.done{background:var(--teal-light);}
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-  padding:22px 20px;box-shadow:var(--shadow);margin-bottom:16px;}
-.eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;
-  letter-spacing:1px;text-transform:uppercase;color:var(--rust);margin-bottom:6px;}
-h2.step-title{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;
-  color:var(--teal);margin:0 0 4px;}
-.step-sub{font-size:13px;color:var(--muted);margin:0 0 18px;line-height:1.5;}
-.choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.choice-btn{border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:18px 14px;
-  cursor:pointer;text-align:left;transition:.15s;display:flex;flex-direction:column;gap:6px;}
-.choice-btn:hover{border-color:var(--teal-light);background:var(--teal-dim);}
-.choice-btn.selected{border-color:var(--rust);background:#FFF4EF;box-shadow:0 0 0 1px var(--rust);}
-.choice-btn .ico{font-size:20px;}
-.choice-btn .lbl{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14.5px;color:var(--teal);}
-.choice-btn .desc{font-size:11.5px;color:var(--muted);line-height:1.4;}
-.field{margin-bottom:16px;}
-.field label{display:block;font-size:12px;font-weight:600;color:var(--teal);margin-bottom:6px;}
-.field input[type=text],.field input[type=number],.field select{width:100%;padding:13px 14px;
-  border-radius:10px;border:1.5px solid var(--line);font-size:14.5px;font-family:inherit;
-  background:#fff;color:var(--ink);}
-.field input:focus{outline:none;border-color:var(--teal-light);}
-.field input.err{border-color:#C0392B;}
-.hint{font-size:11.5px;color:var(--muted);margin-top:5px;}
-.autocomplete-wrap{position:relative;}
-.ac-list{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;
-  border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);
-  max-height:230px;overflow-y:auto;z-index:30;display:none;}
-.ac-list.show{display:block;}
-.ac-item{padding:11px 14px;cursor:pointer;font-size:13.5px;border-bottom:1px solid #F1EFEA;
-  display:flex;justify-content:space-between;align-items:center;gap:10px;}
-.ac-item:last-child{border-bottom:none;}
-.ac-item:hover{background:var(--teal-dim);}
-.ac-code{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--rust);font-weight:600;}
-.ac-empty{padding:14px;font-size:12.5px;color:var(--muted);text-align:center;}
-.ac-new{padding:12px 14px;cursor:pointer;font-size:13px;color:var(--teal-light);
-  font-weight:600;border-top:1px dashed var(--line);background:#FAFBFA;}
-.ac-new:hover{background:var(--teal-dim);}
-.pill-row{display:flex;flex-wrap:wrap;gap:8px;}
-.pill{border:1.5px solid var(--line);background:#fff;border-radius:999px;
-  padding:9px 16px;font-size:13px;font-weight:600;color:var(--teal);
-  cursor:pointer;transition:.15s;font-family:'JetBrains Mono',monospace;}
-.pill:hover{border-color:var(--teal-light);}
-.pill.selected{background:var(--teal);border-color:var(--teal);color:#fff;}
-/* Financiero */
-.fin-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-.fin-field{background:#FAFBFA;border:1px solid #EEECE7;border-radius:11px;padding:14px 14px 10px;}
-.fin-field label{font-size:11px;font-weight:700;color:var(--teal);letter-spacing:0.3px;
-  text-transform:uppercase;display:block;margin-bottom:6px;}
-.fin-field input{width:100%;border:1.5px solid var(--line);border-radius:8px;
-  padding:10px 12px;font-size:15px;font-family:'JetBrains Mono',monospace;
-  font-weight:600;color:var(--ink);background:#fff;}
-.fin-field input:focus{outline:none;border-color:var(--teal-light);}
-.fin-field input.err{border-color:#C0392B;}
-.fin-field .sub{font-size:10.5px;color:var(--muted);margin-top:4px;}
-.fin-resumen{background:var(--teal-dim);border:1px solid var(--teal-light);border-radius:11px;
-  padding:14px 16px;margin-top:14px;}
-.fin-resumen-row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid rgba(0,59,73,0.1);}
-.fin-resumen-row:last-child{border-bottom:none;font-weight:700;font-size:14px;padding-top:8px;}
-.fin-resumen-row .k{color:var(--muted);}
-.fin-resumen-row .v{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--teal);}
-.btn-row{display:flex;gap:10px;margin-top:4px;}
-.btn{flex:1;padding:14px 18px;border-radius:11px;border:none;
-  font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14.5px;
-  cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px;}
-.btn-primary{background:var(--rust);color:#fff;}
-.btn-primary:hover{background:var(--rust-light);}
-.btn-primary:disabled{background:#D8C9C2;cursor:not-allowed;}
-.btn-ghost{background:transparent;border:1.5px solid var(--line);color:var(--teal);flex:0 0 auto;padding:14px 20px;}
-.btn-ghost:hover{border-color:var(--teal-light);}
-.result-code{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;color:var(--teal);
-  background:var(--teal-dim);border:1.5px dashed var(--teal-light);border-radius:12px;
-  padding:18px 16px;text-align:center;word-break:break-all;margin:14px 0;position:relative;}
-.copy-btn{position:absolute;top:10px;right:10px;background:var(--teal);color:#fff;
-  border:none;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:15px;}
-.breakdown{display:flex;flex-direction:column;gap:7px;margin:14px 0;}
-.bd-row{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;
-  padding:8px 12px;background:#FAFBFA;border-radius:8px;border:1px solid #EEECE7;}
-.bd-row .k{color:var(--muted);}
-.bd-row .v{font-family:'JetBrains Mono',monospace;font-weight:600;}
-.drive-progress{display:flex;flex-direction:column;gap:6px;margin:10px 0;}
-.dp-row{display:flex;align-items:center;gap:10px;padding:8px 12px;
-  background:#FAFBFA;border:1px solid #EEECE7;border-radius:9px;font-size:12px;}
-.dp-label{flex:1;color:var(--ink);}
-.dp-status.ok{color:var(--good);font-weight:700;font-size:11px;}
-.dp-status.err{color:#9B1B1B;font-weight:700;font-size:11px;}
-.dp-status.spin{color:var(--muted);font-size:11px;}
-.dp-link{font-size:11px;color:var(--teal-light);text-decoration:none;font-weight:600;}
-.badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
-  padding:5px 11px;border-radius:999px;}
-.badge-warn{background:var(--warn-bg);color:var(--warn);}
-.badge-good{background:var(--good-bg);color:var(--good);}
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
-  background:var(--ink);color:#fff;padding:13px 22px;border-radius:11px;font-size:13.5px;
-  font-weight:600;box-shadow:var(--shadow);opacity:0;transition:.25s;z-index:100;
-  pointer-events:none;max-width:90vw;text-align:center;}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-.toast.err{background:#7A1F1F;}
-.spinner{width:16px;height:16px;border:2.5px solid rgba(255,255,255,0.4);
-  border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;}
-@keyframes spin{to{transform:rotate(360deg);}}
-.loading-overlay{position:fixed;inset:0;background:rgba(10,26,29,0.55);
-  display:none;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(2px);}
-.loading-overlay.show{display:flex;}
-.loading-box{background:#fff;padding:24px 28px;border-radius:14px;text-align:center;
-  display:flex;flex-direction:column;align-items:center;gap:12px;max-width:300px;}
-.loading-box .spinner{width:28px;height:28px;border-color:rgba(0,59,73,0.15);border-top-color:var(--teal);}
-.loading-box span{font-size:13px;color:var(--teal);font-weight:600;line-height:1.4;}
-.modal-back{position:fixed;inset:0;background:rgba(10,26,29,0.5);z-index:150;
-  display:none;align-items:flex-end;justify-content:center;}
-.modal-back.show{display:flex;}
-.modal-box{background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;
-  padding:22px 20px 28px;max-height:80vh;overflow-y:auto;}
-.modal-close{float:right;background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;}
-.hist-item{padding:11px 13px;background:#FAFBFA;border:1px solid #EEECE7;border-radius:10px;
-  display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;}
-.hist-code{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12.5px;color:var(--teal);}
-.hist-meta{font-size:10.5px;color:var(--muted);}
-.history-link{text-align:center;margin-top:8px;}
-.history-link button{background:none;border:none;color:var(--muted);font-size:12.5px;
-  cursor:pointer;text-decoration:underline;font-family:inherit;}
-.folder-option{display:flex;align-items:center;gap:12px;padding:13px 14px;
-  border:1.5px solid var(--line);border-radius:11px;cursor:pointer;margin-bottom:8px;
-  transition:.15s;background:#fff;}
-.folder-option:hover{border-color:var(--teal-light);background:var(--teal-dim);}
-/* Manual */
-.manual-overlay{position:fixed;inset:0;background:rgba(10,26,29,0.55);z-index:300;display:none;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;backdrop-filter:blur(2px);}
-.manual-overlay.show{display:flex;}
-.manual-box{background:#fff;border-radius:16px;width:100%;max-width:680px;margin:auto;overflow:hidden;box-shadow:0 24px 64px -12px rgba(10,26,29,0.4);}
-.manual-header{background:var(--teal);color:#fff;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;}
-.manual-header h2{font-family:'Space Grotesk',sans-serif;font-size:18px;margin:0;color:#fff;}
-.manual-header .manual-close{background:rgba(255,255,255,0.15);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;}
-.manual-header .manual-close:hover{background:rgba(255,255,255,0.25);}
-.manual-body{padding:24px;max-height:80vh;overflow-y:auto;}
-.manual-toc{background:var(--teal-dim);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-bottom:22px;}
-.manual-toc p{font-size:12px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:0.5px;margin:0 0 8px;}
-.manual-toc a{display:block;font-size:13px;color:var(--teal-light);text-decoration:none;padding:3px 0;border-bottom:1px dashed #DDE3E2;}
-.manual-toc a:last-child{border-bottom:none;}
-.manual-toc a:hover{color:var(--rust);}
-.manual-section{margin-bottom:28px;}
-.manual-section h3{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:var(--teal);border-left:3px solid var(--rust);padding-left:10px;margin:0 0 12px;}
-.manual-section p,.manual-section li{font-size:13.5px;color:#444;line-height:1.65;margin:0 0 8px;}
-.manual-section ol,.manual-section ul{padding-left:20px;margin:8px 0;}
-.manual-section li{margin-bottom:6px;}
-.manual-tag{display:inline-block;background:var(--teal-dim);color:var(--teal);font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:5px;border:1px solid #cdd8d9;}
-.manual-warn{background:#FBF1DD;border:1px solid #e8c56a;border-radius:8px;padding:10px 14px;font-size:13px;color:#7a5a0a;margin:10px 0;}
-.manual-warn strong{color:#5c4008;}
-.manual-tip{background:var(--good-bg);border:1px solid #a8d8be;border-radius:8px;padding:10px 14px;font-size:13px;color:#1a5c38;margin:10px 0;}
-.manual-divider{border:none;border-top:1px solid var(--line);margin:20px 0;}
-::-webkit-scrollbar{width:6px;}
-::-webkit-scrollbar-thumb{background:#CFC9BF;border-radius:3px;}
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Montserrat:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
+  :root{
+    --ink:#0A1A1D;
+    --teal:#003B49;
+    --teal-light:#0B5563;
+    --teal-dim:#E8EEEF;
+    --rust:#CF4520;
+    --rust-light:#E8693F;
+    --paper:#F7F5F1;
+    --card:#FFFFFF;
+    --line:#DDE3E2;
+    --good:#1F7A52;
+    --good-bg:#E7F4ED;
+    --warn:#B9760A;
+    --warn-bg:#FBF1DD;
+    --muted:#6B7B7C;
+    --radius:14px;
+    --shadow:0 1px 2px rgba(10,26,29,0.04),0 8px 24px -12px rgba(10,26,29,0.18);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Montserrat',system-ui,sans-serif;
+    background:radial-gradient(800px 400px at 100% -10%,rgba(207,69,32,0.06),transparent 60%),var(--paper);
+    color:var(--ink);min-height:100vh;padding-bottom:48px;
+  }
+
+  /* topbar */
+  .topbar{position:sticky;top:0;z-index:40;background:var(--teal);color:#fff;
+    padding:14px 18px;display:flex;align-items:center;justify-content:space-between;
+    box-shadow:0 4px 16px -8px rgba(0,0,0,0.4);}
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand-mark{height:28px;width:auto;flex-shrink:0;display:block;filter:brightness(0) invert(1);}
+  .brand-mark-signin{height:44px;width:auto;display:block;margin:0 auto 20px;}
+  .brand-text{display:flex;flex-direction:column;line-height:1.15;}
+  .brand-text strong{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;letter-spacing:0.2px;}
+  .brand-text span{font-size:10.5px;color:rgba(255,255,255,0.65);letter-spacing:0.4px;text-transform:uppercase;}
+  .user-chip{display:flex;align-items:center;gap:8px;font-size:12.5px;color:rgba(255,255,255,0.85);}
+  #userAvatar{width:26px;height:26px;border-radius:50%;display:none;border:1.5px solid rgba(255,255,255,0.4);}
+  .icon-btn{background:rgba(255,255,255,0.12);border:none;color:#fff;width:32px;height:32px;
+    border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;}
+  .icon-btn:hover{background:rgba(255,255,255,0.22);}
+
+  /* shell */
+  .shell{max-width:640px;margin:0 auto;padding:20px 16px 0;}
+
+  /* signin */
+  .signin-screen{max-width:420px;margin:14vh auto 0;padding:0 20px;text-align:center;}
+  .signin-screen .brand-mark-signin{height:50px;}
+  /* En el topbar el logo va en blanco (filter invert); en signin va en color original */
+  .brand-mark-signin{filter:none !important;}
+  .signin-screen h1{font-family:'Space Grotesk',sans-serif;font-size:22px;margin:0 0 6px;color:var(--teal);}
+  .signin-screen p{color:var(--muted);font-size:14px;margin:0 0 28px;line-height:1.5;}
+  #gSignInBtn{display:flex;justify-content:center;}
+
+  /* steps */
+  .steps{display:flex;align-items:center;gap:6px;margin-bottom:22px;padding:0 2px;}
+  .step-dot{flex:1;height:4px;border-radius:3px;background:var(--line);transition:background .25s;}
+  .step-dot.active{background:var(--rust);}
+  .step-dot.done{background:var(--teal-light);}
+
+  /* card */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:22px 20px;box-shadow:var(--shadow);margin-bottom:16px;}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;
+    letter-spacing:1px;text-transform:uppercase;color:var(--rust);margin-bottom:6px;}
+  h2.step-title{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;
+    color:var(--teal);margin:0 0 4px;}
+  .step-sub{font-size:13px;color:var(--muted);margin:0 0 18px;line-height:1.5;}
+
+  /* choice */
+  .choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .choice-btn{border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:18px 14px;
+    cursor:pointer;text-align:left;transition:.15s;display:flex;flex-direction:column;gap:6px;}
+  .choice-btn:hover{border-color:var(--teal-light);background:var(--teal-dim);}
+  .choice-btn.selected{border-color:var(--rust);background:#FFF4EF;box-shadow:0 0 0 1px var(--rust);}
+  .choice-btn .ico{font-size:20px;}
+  .choice-btn .label{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14.5px;color:var(--teal);}
+  .choice-btn .desc{font-size:11.5px;color:var(--muted);line-height:1.4;}
+
+  /* inputs */
+  .field{margin-bottom:16px;}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--teal);margin-bottom:6px;letter-spacing:0.2px;}
+  .field input[type=text],.field select{width:100%;padding:13px 14px;border-radius:10px;
+    border:1.5px solid var(--line);font-size:14.5px;font-family:inherit;background:#fff;color:var(--ink);}
+  .field input[type=text]:focus,.field select:focus{outline:none;border-color:var(--teal-light);}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:5px;}
+
+  /* autocomplete */
+  .autocomplete-wrap{position:relative;}
+  .ac-list{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;
+    border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);
+    max-height:230px;overflow-y:auto;z-index:30;display:none;}
+  .ac-list.show{display:block;}
+  .ac-item{padding:11px 14px;cursor:pointer;font-size:13.5px;border-bottom:1px solid #F1EFEA;
+    display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  .ac-item:last-child{border-bottom:none;}
+  .ac-item:hover{background:var(--teal-dim);}
+  .ac-item .ac-code{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--rust);font-weight:600;}
+  .ac-empty{padding:14px;font-size:12.5px;color:var(--muted);text-align:center;}
+  .ac-new{padding:12px 14px;cursor:pointer;font-size:13px;color:var(--teal-light);
+    font-weight:600;border-top:1px dashed var(--line);background:#FAFBFA;}
+  .ac-new:hover{background:var(--teal-dim);}
+
+  /* pills */
+  .pill-row{display:flex;flex-wrap:wrap;gap:8px;}
+  .pill{border:1.5px solid var(--line);background:#fff;border-radius:999px;
+    padding:9px 16px;font-size:13px;font-weight:600;color:var(--teal);
+    cursor:pointer;transition:.15s;font-family:'JetBrains Mono',monospace;}
+  .pill:hover{border-color:var(--teal-light);}
+  .pill.selected{background:var(--teal);border-color:var(--teal);color:#fff;}
+
+  /* buttons */
+  .btn-row{display:flex;gap:10px;margin-top:4px;}
+  .btn{flex:1;padding:14px 18px;border-radius:11px;border:none;
+    font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14.5px;
+    cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .btn-primary{background:var(--rust);color:#fff;}
+  .btn-primary:hover{background:var(--rust-light);}
+  .btn-primary:disabled{background:#D8C9C2;cursor:not-allowed;}
+  .btn-ghost{background:transparent;border:1.5px solid var(--line);color:var(--teal);flex:0 0 auto;padding:14px 20px;}
+  .btn-ghost:hover{border-color:var(--teal-light);}
+
+  /* result */
+  .result-code{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:700;color:var(--teal);
+    background:var(--teal-dim);border:1.5px dashed var(--teal-light);border-radius:12px;
+    padding:20px 16px;text-align:center;letter-spacing:0.5px;word-break:break-all;
+    margin:14px 0;position:relative;}
+  .copy-btn{position:absolute;top:10px;right:10px;background:var(--teal);color:#fff;
+    border:none;border-radius:8px;width:32px;height:32px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;}
+  .breakdown{display:flex;flex-direction:column;gap:7px;margin:16px 0;}
+  .bd-row{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;
+    padding:8px 12px;background:#FAFBFA;border-radius:8px;border:1px solid #EEECE7;}
+  .bd-row .k{color:var(--muted);font-weight:500;}
+  .bd-row .v{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--ink);}
+
+  /* drive progress */
+  .drive-progress{display:flex;flex-direction:column;gap:6px;margin:14px 0;}
+  .dp-row{display:flex;align-items:center;gap:10px;padding:9px 12px;
+    background:#FAFBFA;border:1px solid #EEECE7;border-radius:9px;font-size:12.5px;}
+  .dp-icon{font-size:15px;flex-shrink:0;}
+  .dp-label{flex:1;color:var(--ink);font-weight:500;}
+  .dp-status{font-size:11px;font-weight:700;letter-spacing:0.3px;flex-shrink:0;}
+  .dp-status.ok{color:var(--good);}
+  .dp-status.err{color:#9B1B1B;}
+  .dp-status.spin{color:var(--muted);}
+  .dp-link{font-size:11px;color:var(--teal-light);text-decoration:none;font-weight:600;flex-shrink:0;}
+  .dp-link:hover{text-decoration:underline;}
+
+  .badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
+    padding:5px 11px;border-radius:999px;letter-spacing:0.3px;}
+  .badge-warn{background:var(--warn-bg);color:var(--warn);}
+  .badge-good{background:var(--good-bg);color:var(--good);}
+
+  /* toast */
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fff;padding:13px 22px;border-radius:11px;
+    font-size:13.5px;font-weight:600;box-shadow:var(--shadow);
+    opacity:0;transition:.25s;z-index:100;pointer-events:none;max-width:90vw;text-align:center;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .toast.err{background:#7A1F1F;}
+
+  /* loading */
+  .spinner{width:16px;height:16px;border:2.5px solid rgba(255,255,255,0.4);
+    border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .loading-overlay{position:fixed;inset:0;background:rgba(10,26,29,0.55);
+    display:none;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(2px);}
+  .loading-overlay.show{display:flex;}
+  .loading-box{background:#fff;padding:24px 28px;border-radius:14px;text-align:center;
+    display:flex;flex-direction:column;align-items:center;gap:12px;max-width:300px;}
+  .loading-box .spinner{width:28px;height:28px;border-color:rgba(0,59,73,0.15);border-top-color:var(--teal);}
+  .loading-box span{font-size:13px;color:var(--teal);font-weight:600;line-height:1.4;}
+
+  /* history */
+  .history-link{text-align:center;margin-top:6px;}
+  .history-link button{background:none;border:none;color:var(--muted);font-size:12.5px;
+    cursor:pointer;text-decoration:underline;text-underline-offset:3px;font-family:inherit;}
+  .modal-back{position:fixed;inset:0;background:rgba(10,26,29,0.5);z-index:150;
+    display:none;align-items:flex-end;justify-content:center;}
+  .modal-back.show{display:flex;}
+  @media(min-width:560px){.modal-back{align-items:center;}}
+  .modal-box{background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;
+    padding:22px 20px 28px;max-height:80vh;overflow-y:auto;animation:slideUp .25s ease;}
+  @media(min-width:560px){.modal-box{border-radius:18px;}}
+  @keyframes slideUp{from{transform:translateY(30px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+  .modal-close{float:right;background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;}
+  .hist-item{padding:11px 13px;background:#FAFBFA;border:1px solid #EEECE7;border-radius:10px;
+    display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;}
+  .hist-item .code{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12.5px;color:var(--teal);}
+  .hist-item .meta{font-size:10.5px;color:var(--muted);}
+
+  ::-webkit-scrollbar{width:6px;}
+  ::-webkit-scrollbar-thumb{background:#CFC9BF;border-radius:3px;}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
 </style>
 </head>
 <body>
+
 <div class="loading-overlay" id="loadingOverlay">
-  <div class="loading-box"><div class="spinner"></div><span id="loadingText">Conectando…</span></div>
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <span id="loadingText">Conectando…</span>
+  </div>
 </div>
+
 <div class="toast" id="toast"></div>
 
-<!-- SIGNIN -->
+<!-- signin -->
 <div class="signin-screen" id="signinScreen">
-  <img src="logo-senercom.png" alt="SENERCOM">
+  <img src="logo-senercom.png" alt="SENERCOM" class="brand-mark-signin">
   <h1>Generador de Códigos</h1>
   <p>Asigna el código correlativo del presupuesto y crea automáticamente las carpetas en Drive.</p>
   <div id="gSignInBtn"></div>
 </div>
 
-<!-- APP -->
+<!-- app -->
 <div id="appRoot" style="display:none;">
   <div class="topbar">
     <div class="brand">
-      <img src="logo-senercom.png" alt="SENERCOM">
-      <span>Generador de presupuestos</span>
+      <img src="logo-senercom.png" alt="SENERCOM" class="brand-mark">
+      <div class="brand-text">
+        <span>Generador de presupuestos</span>
+      </div>
     </div>
     <div class="user-chip">
       <img id="userAvatar" alt="">
       <span id="userName"></span>
       <button class="icon-btn" id="signOutBtn" title="Cerrar sesión">⏻</button>
-      <button class="icon-btn" id="manualBtn" title="Manual de uso" onclick="toggleManual()">?</button>
     </div>
   </div>
 
@@ -229,31 +249,32 @@ h2.step-title{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:
       <div class="step-dot" data-step="2"></div>
       <div class="step-dot" data-step="3"></div>
       <div class="step-dot" data-step="4"></div>
-      <div class="step-dot" data-step="5"></div>
     </div>
 
-    <!-- PASO 1: tipo -->
+    <!-- STEP 1: tipo -->
     <div class="card" id="step1">
-      <div class="eyebrow">Paso 1 de 5</div>
+      <div class="eyebrow">Paso 1 de 4</div>
       <h2 class="step-title">¿Qué tipo de presupuesto es?</h2>
       <p class="step-sub">Define si es un presupuesto nuevo o un adicional de una obra ya adjudicada.</p>
       <div class="choice-grid">
         <button class="choice-btn" id="btnOriginal" onclick="selectTipo('O')">
-          <span class="ico">📄</span><span class="lbl">Original</span>
+          <span class="ico">📄</span>
+          <span class="label">Original</span>
           <span class="desc">Presupuesto nuevo para una obra o servicio.</span>
         </button>
         <button class="choice-btn" id="btnAdicional" onclick="selectTipo('A')">
-          <span class="ico">➕</span><span class="lbl">Adicional</span>
+          <span class="ico">➕</span>
+          <span class="label">Adicional</span>
           <span class="desc">Se desprende de un presupuesto original ya adjudicado.</span>
         </button>
       </div>
     </div>
 
-    <!-- PASO 2a: cliente -->
+    <!-- STEP 2a: cliente (original) -->
     <div class="card" id="step2" style="display:none;">
-      <div class="eyebrow">Paso 2 de 5</div>
+      <div class="eyebrow">Paso 2 de 4</div>
       <h2 class="step-title">Cliente</h2>
-      <p class="step-sub">Busca por nombre o RUT. Si no existe, puedes crearlo — quedará pendiente de validación.</p>
+      <p class="step-sub">Busca por nombre o RUT. Si no existe, puedes crearlo — se asignará el código siguiente y quedará pendiente de validación.</p>
       <div class="field autocomplete-wrap">
         <label>Nombre o RUT del cliente</label>
         <input type="text" id="clienteInput" placeholder="Escribe para buscar…" autocomplete="off">
@@ -266,9 +287,9 @@ h2.step-title{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:
       </div>
     </div>
 
-    <!-- PASO 2b: presupuesto original (adicional) -->
+    <!-- STEP 2b: presupuesto original (adicional) -->
     <div class="card" id="step2b" style="display:none;">
-      <div class="eyebrow">Paso 2 de 5</div>
+      <div class="eyebrow">Paso 2 de 4</div>
       <h2 class="step-title">Presupuesto original</h2>
       <p class="step-sub">¿A qué presupuesto original adjudicado pertenece este adicional?</p>
       <div class="field autocomplete-wrap">
@@ -283,87 +304,39 @@ h2.step-title{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:
       </div>
     </div>
 
-    <!-- PASO 3: ingeniero + nombre -->
+    <!-- STEP 3: ingeniero + nombre -->
     <div class="card" id="step3" style="display:none;">
-      <div class="eyebrow">Paso 3 de 5</div>
+      <div class="eyebrow">Paso 3 de 4</div>
       <h2 class="step-title">Ingeniero y nombre de obra</h2>
       <p class="step-sub">Selecciona el ingeniero responsable e ingresa el nombre del proyecto.</p>
       <div class="pill-row" id="ingenieroPills"></div>
       <div class="field" style="margin-top:16px;">
         <label>Nombre del proyecto / obra</label>
         <input type="text" id="nombreProyecto" placeholder="Ej: Cambio de tablero sala eléctrica">
-        <div class="hint">Se guarda en la planilla y da nombre a la carpeta en Drive.</div>
+        <div class="hint">Se guarda junto al código en la planilla y da nombre a la carpeta en Drive.</div>
       </div>
       <div class="btn-row">
         <button class="btn btn-ghost" onclick="goStepBack3()">Atrás</button>
-        <button class="btn btn-primary" id="step3Next" onclick="goStep(4)" disabled>Continuar →</button>
+        <button class="btn btn-primary" id="step3Next" onclick="ejecutarGeneracion()" disabled>Generar y crear carpetas →</button>
       </div>
     </div>
 
-    <!-- PASO 4: valores financieros -->
+    <!-- STEP 4: resultado -->
     <div class="card" id="step4" style="display:none;">
-      <div class="eyebrow">Paso 4 de 5</div>
-      <h2 class="step-title">Valores del presupuesto</h2>
-      <p class="step-sub">Todos los campos son obligatorios. El costo neto se calcula automáticamente.</p>
-      <div class="fin-grid">
-        <div class="fin-field">
-          <label>Materiales</label>
-          <input type="number" id="fMateriales" placeholder="0" min="0" step="1">
-          <div class="sub">Col. O</div>
-        </div>
-        <div class="fin-field">
-          <label>Mano de Obra</label>
-          <input type="number" id="fManoObra" placeholder="0" min="0" step="1">
-          <div class="sub">Col. P</div>
-        </div>
-        <div class="fin-field">
-          <label>Gastos Generales</label>
-          <input type="number" id="fGG" placeholder="0" min="0" step="1">
-          <div class="sub">Col. Q — se descuenta costo oficina</div>
-        </div>
-        <div class="fin-field">
-          <label>Costo Oficina</label>
-          <input type="number" id="fCO" placeholder="0" min="0" step="1">
-          <div class="sub">Col. R — incluido en GG</div>
-        </div>
-        <div class="fin-field">
-          <label>Utilidad</label>
-          <input type="number" id="fUtilidad" placeholder="0" min="0" step="1">
-          <div class="sub">Col. S</div>
-        </div>
-        <div class="fin-field" style="background:var(--teal-dim);border-color:var(--teal-light);">
-          <label style="color:var(--teal);">Costo Neto</label>
-          <input type="number" id="fCostoNeto" placeholder="0" readonly
-            style="background:transparent;border-color:transparent;font-size:17px;color:var(--teal);cursor:default;">
-          <div class="sub">Col. T — calculado automáticamente</div>
-        </div>
-      </div>
-      <div class="fin-resumen" id="finResumen" style="display:none;">
-        <div class="fin-resumen-row"><span class="k">Materiales</span><span class="v" id="rMat">—</span></div>
-        <div class="fin-resumen-row"><span class="k">Mano de Obra</span><span class="v" id="rMO">—</span></div>
-        <div class="fin-resumen-row"><span class="k">GG (neto s/oficina)</span><span class="v" id="rGG">—</span></div>
-        <div class="fin-resumen-row"><span class="k">Costo Oficina</span><span class="v" id="rCO">—</span></div>
-        <div class="fin-resumen-row"><span class="k">Utilidad</span><span class="v" id="rUtil">—</span></div>
-        <div class="fin-resumen-row"><span class="k">Costo Neto</span><span class="v" id="rNeto">—</span></div>
-      </div>
-      <div class="btn-row" style="margin-top:16px;">
-        <button class="btn btn-ghost" onclick="goStep(3)">Atrás</button>
-        <button class="btn btn-primary" id="step4Next" onclick="ejecutarGeneracion()" disabled>Generar código y carpetas →</button>
-      </div>
-    </div>
-
-    <!-- PASO 5: resultado -->
-    <div class="card" id="step5" style="display:none;">
       <div class="eyebrow">Listo</div>
       <h2 class="step-title">Código asignado</h2>
-      <div id="badgeWrap"></div>
-      <div class="result-code">
-        <button class="copy-btn" onclick="copyCode()">⧉</button>
+      <div id="newClientBadgeWrap"></div>
+      <div class="result-code" id="resultCode">
+        <button class="copy-btn" onclick="copyCode()" title="Copiar">⧉</button>
         <span id="resultCodeText">···</span>
       </div>
       <div class="breakdown" id="breakdownWrap"></div>
-      <div style="margin:14px 0 6px;"><div class="eyebrow" style="margin-bottom:8px;">Carpetas en Drive</div>
-        <div class="drive-progress" id="driveProgress"></div></div>
+
+      <div style="margin:16px 0 8px;">
+        <div class="eyebrow" style="margin-bottom:8px;">Carpetas creadas en Drive</div>
+        <div class="drive-progress" id="driveProgress"></div>
+      </div>
+
       <div class="btn-row" style="margin-top:18px;">
         <button class="btn btn-ghost" onclick="resetFlow()">Nuevo código</button>
         <button class="btn btn-primary" onclick="copyCode()">Copiar código</button>
@@ -373,15 +346,7 @@ h2.step-title{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:
   </div>
 </div>
 
-<!-- Modal selección carpeta cliente -->
-<div class="modal-back" id="folderModal">
-  <div class="modal-box">
-    <h2 class="step-title" style="margin-bottom:4px;">📁 Carpeta del cliente</h2>
-    <div id="folderModalContent"></div>
-  </div>
-</div>
-
-<!-- Modal historial -->
+<!-- History modal -->
 <div class="modal-back" id="historyModal" onclick="if(event.target===this)closeHistory()">
   <div class="modal-box">
     <button class="modal-close" onclick="closeHistory()">✕</button>
@@ -390,197 +355,8 @@ h2.step-title{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:
   </div>
 </div>
 
-<!-- MANUAL DE USO -->
-<div class="manual-overlay" id="manualOverlay" onclick="if(event.target===this)toggleManual()">
-  <div class="manual-box">
-    <div class="manual-header">
-      <h2>📖 Manual de uso — Generador de Códigos</h2>
-      <button class="manual-close" onclick="toggleManual()">✕</button>
-    </div>
-    <div class="manual-body">
-
-      <!-- ÍNDICE -->
-      <div class="manual-toc">
-        <p>Contenido</p>
-        <a href="#sec-que-es">1. ¿Qué hace esta aplicación?</a>
-        <a href="#sec-acceso">2. Acceso y sesión</a>
-        <a href="#sec-flujo">3. Flujo paso a paso (5 pasos)</a>
-        <a href="#sec-financiero">4. Valores financieros: cómo llenarlos</a>
-        <a href="#sec-resultado">5. Resultado: código, planilla y Drive</a>
-        <a href="#sec-adicionales">6. Presupuestos adicionales</a>
-        <a href="#sec-clientes">7. Clientes nuevos</a>
-        <a href="#sec-admin">8. Información para el administrador</a>
-        <a href="#sec-errores">9. Errores frecuentes</a>
-      </div>
-
-      <!-- SECCIÓN 1 -->
-      <div class="manual-section" id="sec-que-es">
-        <h3>1. ¿Qué hace esta aplicación?</h3>
-        <p>El <strong>Generador de Códigos de Presupuesto</strong> automatiza tres tareas que antes se hacían a mano:</p>
-        <ol>
-          <li>Asigna el <strong>código correlativo</strong> del presupuesto (ej: <span class="manual-tag">002-005-O26-CB</span>) sin riesgo de duplicados ni saltos.</li>
-          <li>Registra la obra en la <strong>planilla Centros de Costos</strong> con todos los valores financieros comprometidos.</li>
-          <li>Crea automáticamente la <strong>estructura de carpetas en Google Drive</strong> para ese proyecto.</li>
-        </ol>
-        <div class="manual-tip">💡 El código se genera <strong>solo una vez por presupuesto</strong>. Si necesitas modificar algo después, hazlo directamente en la planilla.</div>
-      </div>
-
-      <hr class="manual-divider">
-
-      <!-- SECCIÓN 2 -->
-      <div class="manual-section" id="sec-acceso">
-        <h3>2. Acceso y sesión</h3>
-        <ol>
-          <li>Ingresa a <strong>cbraun-collab.github.io/generador-codigos</strong> desde cualquier navegador (Chrome recomendado).</li>
-          <li>Haz clic en <strong>«Continuar con Google»</strong> y selecciona tu cuenta Senercom (<em>@senercom.cl</em>) o tu cuenta personal autorizada.</li>
-          <li>La primera vez aparecerá una pantalla de advertencia de Google («aplicación en pruebas») — haz clic en <strong>«Continuar»</strong>. Es normal, la app no está publicada públicamente.</li>
-          <li>Una vez dentro, tu nombre y foto aparecerán en la barra superior. La sesión se mantiene activa mientras tengas el navegador abierto.</li>
-        </ol>
-        <div class="manual-warn">⚠️ Si la sesión expira o ves un error de autorización, recarga la página y vuelve a iniciar sesión. No pierde ningún dato ya guardado.</div>
-      </div>
-
-      <hr class="manual-divider">
-
-      <!-- SECCIÓN 3 -->
-      <div class="manual-section" id="sec-flujo">
-        <h3>3. Flujo paso a paso (5 pasos)</h3>
-        <p>La barra de progreso en la parte superior indica en qué paso estás. El botón <strong>«Atrás»</strong> te permite corregir cualquier paso anterior.</p>
-
-        <p><strong>Paso 1 — Tipo de presupuesto</strong></p>
-        <ol>
-          <li>Elige <strong>Original</strong> si es un presupuesto nuevo para un cliente.</li>
-          <li>Elige <strong>Adicional</strong> si se desprende de un presupuesto original ya adjudicado.</li>
-        </ol>
-
-        <p><strong>Paso 2 — Cliente / Presupuesto original</strong></p>
-        <ol>
-          <li>Para <em>Original</em>: escribe el nombre o RUT del cliente. La app busca en tiempo real en la planilla.</li>
-          <li>Para <em>Adicional</em>: escribe el código o nombre del presupuesto original (ej: <span class="manual-tag">001-002-O25-CR</span>).</li>
-          <li>Selecciona el resultado correcto de la lista desplegable.</li>
-        </ol>
-
-        <p><strong>Paso 3 — Ingeniero y nombre de obra</strong></p>
-        <ol>
-          <li>Selecciona el ingeniero responsable haciendo clic en su pastilla.</li>
-          <li>Escribe el nombre del proyecto (mínimo 3 caracteres). Este nombre aparecerá en la planilla y en el nombre de la carpeta en Drive.</li>
-        </ol>
-
-        <p><strong>Paso 4 — Valores financieros</strong> <em>(ver sección 4 para detalle)</em></p>
-
-        <p><strong>Paso 5 — Resultado</strong> <em>(ver sección 5 para detalle)</em></p>
-      </div>
-
-      <hr class="manual-divider">
-
-      <!-- SECCIÓN 4 -->
-      <div class="manual-section" id="sec-financiero">
-        <h3>4. Valores financieros: cómo llenarlos</h3>
-        <p>Todos los campos son <strong>obligatorios</strong>. No puedes generar el código si alguno falta o es cero.</p>
-        <ul>
-          <li><strong>Materiales</strong> → costo de materiales del proyecto (sin IVA).</li>
-          <li><strong>Mano de Obra</strong> → costo de mano de obra directa.</li>
-          <li><strong>Gastos Generales</strong> → ingresa el valor <em>total</em> de GG. La app descuenta automáticamente el Costo Oficina para calcular el neto que va a la planilla.</li>
-          <li><strong>Costo Oficina</strong> → la parte de los GG que corresponde a estructura de oficina. Está incluido en el valor de GG que ingresaste arriba.</li>
-          <li><strong>Utilidad</strong> → margen de utilidad esperado.</li>
-          <li><strong>Costo Neto</strong> → se calcula automáticamente: Materiales + MO + GG neto + Costo Oficina + Utilidad. No se puede editar.</li>
-        </ul>
-        <div class="manual-tip">💡 Ejemplo: si GG = $3.000.000 y Costo Oficina = $1.000.000, en la planilla quedarán GG = $2.000.000 y Costo Oficina = $1.000.000 (suman los $3.000.000 originales).</div>
-        <div class="manual-warn">⚠️ Estos valores son el <strong>compromiso del ingeniero</strong> con el proyecto. Una vez generado el código no se pueden modificar desde la app — cualquier corrección debe hacerse directamente en la planilla.</div>
-      </div>
-
-      <hr class="manual-divider">
-
-      <!-- SECCIÓN 5 -->
-      <div class="manual-section" id="sec-resultado">
-        <h3>5. Resultado: código, planilla y Drive</h3>
-        <p>Al generar el código, la app realiza tres acciones simultáneas:</p>
-        <ol>
-          <li><strong>Código asignado</strong> — aparece en pantalla. Puedes copiarlo con el botón ⧉. El formato es:
-            <br><span class="manual-tag">[cód.cliente]-[correlativo]-O[año]-[iniciales]</span> para originales
-            <br><span class="manual-tag">[cód.cliente]-[correlativo]-A[año]-[iniciales]-[nro adicional]</span> para adicionales.
-          </li>
-          <li><strong>Planilla Centros de Costos</strong> — se agrega una fila con todos los datos. La fila queda marcada en <span style="background:#fff3cc;padding:1px 6px;border-radius:4px;font-size:12px;">amarillo</span> para que el administrador sepa que es nueva.</li>
-          <li><strong>Carpetas en Drive</strong> — se crean automáticamente dentro de la carpeta del año y del cliente. Cada una incluye las subcarpetas de Estudio y Ejecución del Proyecto.</li>
-        </ol>
-        <p>El estado de creación de cada carpeta se muestra en tiempo real con indicadores ✅ / ⏳.</p>
-      </div>
-
-      <hr class="manual-divider">
-
-      <!-- SECCIÓN 6 -->
-      <div class="manual-section" id="sec-adicionales">
-        <h3>6. Presupuestos adicionales</h3>
-        <ol>
-          <li>En el Paso 1 elige <strong>Adicional</strong>.</li>
-          <li>En el Paso 2 busca el presupuesto original por código (ej: <span class="manual-tag">001-002-O25-CR</span>) o por nombre de obra.</li>
-          <li>El código generado tendrá el formato: <span class="manual-tag">001-002-A26-CR-001</span> (adicional nro 1 de ese original en 2026).</li>
-          <li>En Drive, la carpeta del adicional se crea <em>dentro</em> de la carpeta <strong>04 - ADICIONALES</strong> del proyecto original, no como carpeta independiente.</li>
-        </ol>
-        <div class="manual-warn">⚠️ El presupuesto original debe existir en la planilla para poder buscarlos. Si no aparece en la lista, verifica que esté registrado en Centros de Costos.</div>
-      </div>
-
-      <hr class="manual-divider">
-
-      <!-- SECCIÓN 7 -->
-      <div class="manual-section" id="sec-clientes">
-        <h3>7. Clientes nuevos</h3>
-        <ol>
-          <li>Si el cliente no existe en la planilla, escribe su nombre en el campo de búsqueda.</li>
-          <li>Haz clic en <strong>«+ Crear cliente: "[nombre]"»</strong> al final de la lista.</li>
-          <li>La app le asigna el siguiente código disponible y muestra una etiqueta <span style="background:#FBF1DD;padding:1px 6px;border-radius:4px;font-size:12px;color:#7a5a0a;">⚠ Cliente nuevo</span>.</li>
-          <li>El cliente queda registrado en la pestaña <strong>General</strong> de la planilla para uso futuro.</li>
-        </ol>
-        <div class="manual-tip">💡 El administrador debe completar después el RUT y los datos adicionales del cliente directamente en la planilla.</div>
-      </div>
-
-      <hr class="manual-divider">
-
-      <!-- SECCIÓN 8 -->
-      <div class="manual-section" id="sec-admin">
-        <h3>8. Información para el administrador</h3>
-        <p><strong>Columnas que escribe la app en Centros de Costos:</strong></p>
-        <ul>
-          <li><strong>A</strong> → Código del presupuesto</li>
-          <li><strong>B</strong> → Nombre del proyecto</li>
-          <li><strong>C</strong> → Nombre completo (código + nombre)</li>
-          <li><strong>D</strong> → Cliente (código + nombre)</li>
-          <li><strong>E</strong> → Responsable (ingeniero)</li>
-          <li><strong>H</strong> → Fecha de envío (fecha en que se generó el código)</li>
-          <li><strong>J</strong> → Estado: <em>«Esperando Respuesta»</em></li>
-          <li><strong>L</strong> → REV: <em>1</em></li>
-          <li><strong>O–S</strong> → Materiales, MO, GG neto, Costo Oficina, Utilidad</li>
-          <li><strong>T y U</strong> → Costo Neto Total y Valor Contrato Neto (mismo valor)</li>
-          <li><strong>V</strong> → Nombre del ingeniero que estudió el proyecto</li>
-          <li><strong>W</strong> → Año</li>
-        </ul>
-        <p><strong>Carpetas en Drive:</strong> se crean dentro de la carpeta del año en curso (ej: <em>03 PROYECTOS 2026</em>), buscando automáticamente por nombre. Si el año cambia, la app busca la carpeta del nuevo año sin necesidad de configuración.</p>
-        <p><strong>Usuarios autorizados:</strong> para agregar nuevos usuarios, ve a Google Cloud Console → proyecto «Charla Diaria» → OAuth → Usuarios de prueba.</p>
-        <div class="manual-warn">⚠️ La app no elimina ni modifica filas existentes. Solo escribe en la primera fila vacía del rango de datos (filas 4–3000). El resumen e indicadores debajo de esa zona no se ven afectados.</div>
-      </div>
-
-      <hr class="manual-divider">
-
-      <!-- SECCIÓN 9 -->
-      <div class="manual-section" id="sec-errores">
-        <h3>9. Errores frecuentes</h3>
-        <ul>
-          <li><strong>«Error 400 al cargar datos»</strong> — El nombre de la pestaña no coincide. Verifica en config.js que <em>SHEET_CENTRO_COSTOS</em> sea exactamente <em>«Centros de Costos»</em>.</li>
-          <li><strong>«Error de autorización»</strong> — La sesión expiró. Recarga la página e inicia sesión de nuevo.</li>
-          <li><strong>«El código XXX ya existe»</strong> — Protección anti-duplicados activada. Ya fue generado ese código anteriormente.</li>
-          <li><strong>«Límite de seguridad alcanzado»</strong> — La planilla superó las 3000 filas de datos. Contactar al administrador.</li>
-          <li><strong>No aparece la carpeta del cliente en Drive</strong> — Si hay varias carpetas que coinciden con el nombre, la app muestra un selector para que elijas la correcta.</li>
-          <li><strong>La app no carga en móvil</strong> — Asegúrate de estar en Chrome o Safari. Algunos navegadores de empresa bloquean las cookies de Google.</li>
-        </ul>
-        <div class="manual-tip">💡 Ante cualquier duda o error no listado, contactar a Carlos Braun: <strong>cbraun@senercom.cl</strong></div>
-      </div>
-
-    </div><!-- /manual-body -->
-  </div><!-- /manual-box -->
-</div><!-- /manual-overlay -->
-
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
-<!-- Este bloque se debe insertar ANTES del cierre </body> -->

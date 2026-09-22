@@ -1,35 +1,47 @@
 // ============================================================
-// APP.JS — Generador de Códigos SENERCOM
+// APP.JS — Generador de Códigos + Carpetas Drive · SENERCOM
 // ============================================================
+
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
 const DRIVE_API  = 'https://www.googleapis.com/drive/v3';
 
-let tokenClient = null;
-let accessToken = null;
+let tokenClient  = null;
+let accessToken  = null;
 
+// Estado del flujo actual
 let state = {
-  tipo: null,
-  cliente: null,
-  origPresupuesto: null,
-  ingeniero: null,
+  tipo: null,             // 'O' | 'A'
+  cliente: null,          // { codigo, nombre, rut, isNew }
+  origPresupuesto: null,  // { codigo, nombreProyecto, driveId } — solo si adicional
+  ingeniero: null,        // { iniciales, nombre }
   nombreProyecto: '',
-  fin: { materiales:0, manoObra:0, gg:0, co:0, utilidad:0, costoNeto:0, ggNeto:0 },
 };
 
-let cacheGeneral = null;
-let cacheCentroCostos = null;
-let todayHistory = [];
-let driveRows = [];
+// Caché local de la planilla
+let cacheGeneral      = null;  // [{ codigo, nombre, rut }]
+let cacheCentroCostos = null;  // [{ id, nombreProyecto, clienteCodigo, clienteNombre, responsable, fecha, anio }]
 
-const anioActual = new Date().getFullYear();
-const anioSufijo = String(anioActual).slice(-2);
+// Historial de la sesión
+let todayHistory = [];
+
+// Año en curso (robusto ante cambio de año)
+const anioActual  = new Date().getFullYear();
+const anioSufijo  = String(anioActual).slice(-2);   // "26" para 2026, "27" para 2027…
 
 // ============================================================
 // AUTH
 // ============================================================
-window.onload = () => { buildIngenieroPills(); initAuth(); };
+window.onload = () => {
+  buildIngenieroPills();
+  initAuth();
+};
 
 function initAuth() {
+  if (!CONFIG.GOOGLE_CLIENT_ID || CONFIG.GOOGLE_CLIENT_ID.includes('TU_')) {
+    toast('Falta configurar el Client ID en config.js', true); return;
+  }
+
+  // Inicializar tokenClient con todos los scopes necesarios
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CONFIG.GOOGLE_CLIENT_ID,
     scope: [
@@ -38,17 +50,22 @@ function initAuth() {
       'https://www.googleapis.com/auth/userinfo.profile',
     ].join(' '),
     callback: async (resp) => {
-      if (resp.error) { toast('Error al iniciar sesión: ' + resp.error, true); return; }
+      if (resp.error) { toast('No se pudo iniciar sesión: ' + resp.error, true); return; }
       accessToken = resp.access_token;
       await onSignedIn();
     },
   });
 
+  // Renderizar botón propio — evita problemas con el iframe de Google Identity
   document.getElementById('gSignInBtn').innerHTML = `
-    <button id="btnEntrar" style="display:inline-flex;align-items:center;gap:12px;
-      background:#fff;border:1.5px solid #DDE3E2;border-radius:999px;padding:13px 28px;
-      cursor:pointer;font-family:'Montserrat',sans-serif;font-size:15px;font-weight:600;
-      color:#1A1A1A;box-shadow:0 2px 8px rgba(0,0,0,0.10);">
+    <button onclick="window._startAuth()" style="
+      display:inline-flex; align-items:center; gap:12px;
+      background:#fff; border:1.5px solid #DDE3E2; border-radius:999px;
+      padding:13px 28px; cursor:pointer; font-family:'Montserrat',sans-serif;
+      font-size:15px; font-weight:600; color:#1A1A1A;
+      box-shadow:0 2px 8px rgba(0,0,0,0.10); transition:box-shadow .15s;
+    " onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.18)'"
+       onmouseout="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.10)'">
       <svg width="20" height="20" viewBox="0 0 48 48">
         <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
         <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
@@ -58,8 +75,7 @@ function initAuth() {
       Continuar con Google
     </button>`;
 
-  document.getElementById('btnEntrar').addEventListener('click', () =>
-    tokenClient.requestAccessToken({ prompt: 'consent' }));
+  window._startAuth = () => tokenClient.requestAccessToken({ prompt: 'consent' });
 }
 
 async function onSignedIn() {
@@ -73,7 +89,8 @@ async function onSignedIn() {
       const av = document.getElementById('userAvatar');
       av.src = p.picture; av.style.display = 'inline-block';
     }
-  } catch(e) {}
+  } catch(e) { /* perfil opcional */ }
+
   document.getElementById('signinScreen').style.display = 'none';
   document.getElementById('appRoot').style.display = 'block';
   await loadSheetData();
@@ -90,11 +107,13 @@ document.addEventListener('DOMContentLoaded', () => {
 // ============================================================
 // LOADING / TOAST
 // ============================================================
-function showLoading(t) {
-  document.getElementById('loadingText').textContent = t || 'Cargando…';
+function showLoading(text) {
+  document.getElementById('loadingText').textContent = text || 'Cargando…';
   document.getElementById('loadingOverlay').classList.add('show');
 }
-function hideLoading() { document.getElementById('loadingOverlay').classList.remove('show'); }
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('show');
+}
 function toast(msg, isErr) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -114,35 +133,14 @@ async function sheetsGet(range) {
 }
 
 async function sheetsAppend(range, row) {
-  // Usa valueInputOption=USER_ENTERED sin insertDataOption para NO insertar filas nuevas
-  // Solo sobreescribe en la primera fila vacía del rango
-  const url = `${SHEETS_API}/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`;
+  const url = `${SHEETS_API}/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
   const r = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ values: [row] }),
   });
-  if (!r.ok) throw new Error(`Sheets APPEND: ${r.status}`);
+  if (!r.ok) throw new Error(`Sheets APPEND "${range}": ${r.status}`);
   return r.json();
-}
-
-async function sheetsBatchUpdate(requests) {
-  const url = `${SHEETS_API}/${CONFIG.SPREADSHEET_ID}:batchUpdate`;
-  const r = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ requests }),
-  });
-  if (!r.ok) throw new Error(`Sheets batchUpdate: ${r.status}`);
-  return r.json();
-}
-
-async function sheetsGetSheetId(sheetName) {
-  const url = `${SHEETS_API}/${CONFIG.SPREADSHEET_ID}?fields=sheets.properties`;
-  const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-  const data = await r.json();
-  const sheet = data.sheets?.find(s => s.properties.title === sheetName);
-  return sheet?.properties?.sheetId ?? null;
 }
 
 async function loadSheetData() {
@@ -151,14 +149,15 @@ async function loadSheetData() {
       sheetsGet(CONFIG.RANGE_GENERAL_READ),
       sheetsGet(CONFIG.RANGE_CC_READ),
     ]);
-    cacheGeneral = parseGeneral(gRows);
+    cacheGeneral      = parseGeneral(gRows);
     cacheCentroCostos = parseCentroCostos(ccRows);
   } catch(e) {
     console.error(e);
-    toast('No se pudo cargar la planilla: ' + e.message, true);
+    toast('No se pudo cargar la planilla. Verifica tu conexión.', true);
   }
 }
 
+// General A2:E — col D (idx 3) = "001 ECBI", col E (idx 4) = RUT
 function parseGeneral(rows) {
   const seen = new Map();
   for (const row of rows) {
@@ -167,102 +166,172 @@ function parseGeneral(rows) {
     if (!raw) continue;
     const m = raw.match(/^(\d{2,3})\s+(.+)$/);
     if (!m) continue;
-    const cod = m[1].padStart(3,'0'), nom = m[2].trim();
-    if (!seen.has(cod)) seen.set(cod, { codigo:cod, nombre:nom, rut });
+    const cod = m[1].padStart(3, '0'), nom = m[2].trim();
+    if (!seen.has(cod)) seen.set(cod, { codigo: cod, nombre: nom, rut });
     else if (rut && !seen.get(cod).rut) seen.get(cod).rut = rut;
   }
   return [...seen.values()].sort((a,b) => a.codigo.localeCompare(b.codigo));
 }
 
+// CentroCostos A4:L — A=Id(0), B=NombreProyecto(1), D=Cliente(3), E=Responsable(4), F=Fecha(5), L=Año(11)
 function parseCentroCostos(rows) {
-  return rows.filter(r => r[0]?.trim()).map(r => ({
-    id: r[0].trim(),
-    nombreProyecto: (r[1] || '').trim(),
-    clienteCodigo: (() => { const m = (r[3]||'').match(/^(\d{2,3})\s/); return m ? m[1].padStart(3,'0') : ''; })(),
-    clienteNombre: (r[3] || '').trim(),
-    responsable: (r[4] || '').trim(),
-    fecha: (r[5] || '').trim(),
-    anio: (r[11] || '').trim(),
-  }));
+  return rows
+    .filter(r => r[0]?.trim())
+    .map(r => {
+      const raw = (r[3] || '').trim();
+      const m   = raw.match(/^(\d{2,3})\s+(.+)$/);
+      return {
+        id: r[0].trim(),
+        nombreProyecto: (r[1] || '').trim(),
+        clienteCodigo:  m ? m[1].padStart(3,'0') : '',
+        clienteNombre:  m ? m[2].trim() : raw,
+        responsable:    (r[4] || '').trim(),
+        fecha:          (r[5] || '').trim(),
+        anio:           (r[11] || '').trim(),
+      };
+    });
 }
 
 // ============================================================
 // DRIVE API
 // ============================================================
+
+/** Busca una carpeta por nombre dentro de un parent. Devuelve id o null. */
 async function driveFindFolder(name, parentId) {
   const q = `name='${name.replace(/'/g,"\\'")}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
-  const r = await fetch(`${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true`,
-    { headers: { Authorization: `Bearer ${accessToken}` } });
+  const url = `${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
   if (!r.ok) throw new Error(`Drive buscar "${name}": ${r.status}`);
-  return (await r.json()).files?.[0]?.id || null;
+  const data = await r.json();
+  return data.files?.[0]?.id || null;
 }
 
+/** Crea una carpeta dentro de un parent. Devuelve id. */
 async function driveCreateFolder(name, parentId) {
   const r = await fetch(`${DRIVE_API}/files?supportsAllDrives=true`, {
-    method:'POST',
-    headers:{ Authorization:`Bearer ${accessToken}`, 'Content-Type':'application/json' },
-    body: JSON.stringify({ name, mimeType:'application/vnd.google-apps.folder', parents:[parentId] }),
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [parentId],
+    }),
   });
-  if (!r.ok) throw new Error(`Drive crear "${name}": ${r.status}`);
+  if (!r.ok) {
+    const err = await r.text();
+    throw new Error(`Drive crear "${name}": ${r.status} ${err}`);
+  }
   return (await r.json()).id;
 }
 
+/** Encuentra o crea una carpeta (idempotente). Devuelve id. */
 async function driveEnsureFolder(name, parentId) {
-  return (await driveFindFolder(name, parentId)) || (await driveCreateFolder(name, parentId));
+  const existing = await driveFindFolder(name, parentId);
+  if (existing) return existing;
+  return driveCreateFolder(name, parentId);
 }
 
-function driveFolderUrl(id) { return `https://drive.google.com/drive/folders/${id}`; }
+/** URL pública de una carpeta Drive dado su id. */
+function driveFolderUrl(id) {
+  return `https://drive.google.com/drive/folders/${id}`;
+}
 
 // ============================================================
-// NAVEGACIÓN
+// FLUJO PRINCIPAL DE CREACIÓN DE CARPETAS
 // ============================================================
-function updateDots(n) {
+
+/**
+ * Asegura que exista la carpeta del año dentro de la raíz OBRAS.
+ * Nombre de la carpeta: el año completo, ej "2026".
+ */
+async function ensureAnioFolder() {
+  return driveEnsureFolder(String(anioActual), CONFIG.DRIVE_OBRAS_ROOT);
+}
+
+/**
+ * Asegura que exista la carpeta del cliente dentro del año.
+ * Nombre: "001 ECBI"
+ */
+async function ensureClienteFolder(anioFolderId, cliente) {
+  const name = `${cliente.codigo} ${cliente.nombre}`;
+  return driveEnsureFolder(name, anioFolderId);
+}
+
+/**
+ * Crea la carpeta del presupuesto con toda su estructura interna.
+ * Devuelve { rootId, estudioId, ejecucionId, adicionalId }
+ */
+async function crearEstructuraPresupuesto(parentId, codigoPpto) {
+  // Carpeta raíz del presupuesto
+  const rootId = await driveEnsureFolder(codigoPpto, parentId);
+
+  // 01 - ESTUDIO PROYECTO con subcarpetas
+  const estudioId = await driveEnsureFolder('01 - ESTUDIO PROYECTO', rootId);
+  for (const sub of CONFIG.SUBCARPETAS_ESTUDIO) {
+    await driveEnsureFolder(sub, estudioId);
+  }
+
+  // 02 - EJECUCIÓN PROYECTO con subcarpetas
+  const ejecucionId = await driveEnsureFolder('02 - EJECUCIÓN PROYECTO', rootId);
+  for (const sub of CONFIG.SUBCARPETAS_EJECUCION) {
+    await driveEnsureFolder(sub, ejecucionId);
+  }
+
+  return { rootId, estudioId, ejecucionId };
+}
+
+// ============================================================
+// NAVEGACIÓN DE PASOS
+// ============================================================
+function updateStepDots(n) {
   document.querySelectorAll('.step-dot').forEach(d => {
     const i = +d.dataset.step;
-    d.classList.toggle('active', i===n);
-    d.classList.toggle('done', i<n);
+    d.classList.toggle('active', i === n);
+    d.classList.toggle('done', i < n);
   });
 }
 
-function hideAll() {
-  ['step1','step2','step2b','step3','step4','step5'].forEach(id =>
-    document.getElementById(id).style.display = 'none');
+function hideAllSteps() {
+  ['step1','step2','step2b','step3','step4'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
 }
 
 function goStep(n) {
-  hideAll();
-  if (n===1) document.getElementById('step1').style.display='block';
-  if (n===2) document.getElementById(state.tipo==='A'?'step2b':'step2').style.display='block';
-  if (n===3) { document.getElementById('step3').style.display='block'; validateStep3(); }
-  if (n===4) { document.getElementById('step4').style.display='block'; recalcFin(); }
-  if (n===5) document.getElementById('step5').style.display='block';
-  updateDots(n);
+  hideAllSteps();
+  if (n === 1) { document.getElementById('step1').style.display = 'block'; }
+  if (n === 2) {
+    const id = state.tipo === 'A' ? 'step2b' : 'step2';
+    document.getElementById(id).style.display = 'block';
+  }
+  if (n === 3) { document.getElementById('step3').style.display = 'block'; validateStep3(); }
+  if (n === 4) { document.getElementById('step4').style.display = 'block'; }
+  updateStepDots(n);
 }
 
 function goStepBack3() { goStep(2); }
 
 // ============================================================
-// PASO 1
+// STEP 1 — TIPO
 // ============================================================
 function selectTipo(tipo) {
   state.tipo = tipo;
-  document.getElementById('btnOriginal').classList.toggle('selected', tipo==='O');
-  document.getElementById('btnAdicional').classList.toggle('selected', tipo==='A');
+  document.getElementById('btnOriginal').classList.toggle('selected', tipo === 'O');
+  document.getElementById('btnAdicional').classList.toggle('selected', tipo === 'A');
   setTimeout(() => goStep(2), 180);
 }
 
 // ============================================================
-// PASO 2 — CLIENTE / ORIGINAL
+// STEP 2a — CLIENTE (autocomplete)
 // ============================================================
 document.addEventListener('input', e => {
-  if (e.target.id==='clienteInput') renderClienteSugg(e.target.value);
-  if (e.target.id==='origInput') renderOrigSugg(e.target.value);
-  if (e.target.id==='nombreProyecto') { state.nombreProyecto=e.target.value; validateStep3(); }
-  if (['fMateriales','fManoObra','fGG','fCO','fUtilidad'].includes(e.target.id)) recalcFin();
+  if (e.target.id === 'clienteInput') renderClienteSugg(e.target.value);
+  if (e.target.id === 'origInput')    renderOrigSugg(e.target.value);
+  if (e.target.id === 'nombreProyecto') { state.nombreProyecto = e.target.value; validateStep3(); }
 });
 document.addEventListener('focus', e => {
-  if (e.target.id==='clienteInput') renderClienteSugg(e.target.value);
-  if (e.target.id==='origInput') renderOrigSugg(e.target.value);
+  if (e.target.id === 'clienteInput') renderClienteSugg(e.target.value);
+  if (e.target.id === 'origInput')    renderOrigSugg(e.target.value);
 }, true);
 document.addEventListener('click', e => {
   if (!e.target.closest('.autocomplete-wrap'))
@@ -272,47 +341,73 @@ document.addEventListener('click', e => {
 function renderClienteSugg(q) {
   const list = document.getElementById('clienteList');
   const query = q.trim().toLowerCase();
-  if (!cacheGeneral) { list.innerHTML='<div class="ac-empty">Cargando…</div>'; list.classList.add('show'); return; }
-  let matches = query.length===0
+  if (!cacheGeneral) { list.innerHTML = '<div class="ac-empty">Cargando…</div>'; list.classList.add('show'); return; }
+
+  let matches = query.length === 0
     ? cacheGeneral.slice(-8).reverse()
     : cacheGeneral.filter(c =>
-        c.nombre.toLowerCase().includes(query)||c.codigo.includes(query)||
-        (c.rut&&c.rut.replace(/\./g,'').includes(query.replace(/\./g,'')))).slice(0,8);
+        c.nombre.toLowerCase().includes(query) ||
+        c.codigo.includes(query) ||
+        (c.rut && c.rut.replace(/\./g,'').toLowerCase().includes(query.replace(/\./g,'')))
+      ).slice(0, 8);
+
   let html = matches.length
-    ? matches.map(c=>`<div class="ac-item" onclick="pickCliente('${esc(c.codigo)}','${esc(c.nombre)}','${esc(c.rut)}',false)">
-        <span>${escH(c.nombre)}</span><span class="ac-code">${c.codigo}</span></div>`).join('')
-    : '<div class="ac-empty">No encontrado.</div>';
-  if (query.length>=2) html+=`<div class="ac-new" onclick="crearNuevoCliente('${esc(q)}')">＋ Crear cliente: "${escH(q)}"</div>`;
-  list.innerHTML=html; list.classList.add('show');
+    ? matches.map(c => `
+        <div class="ac-item" onclick="pickCliente('${esc(c.codigo)}','${esc(c.nombre)}','${esc(c.rut)}',false)">
+          <span>${escHtml(c.nombre)}</span>
+          <span class="ac-code">${c.codigo}</span>
+        </div>`).join('')
+    : `<div class="ac-empty">No encontrado.</div>`;
+
+  if (query.length >= 2)
+    html += `<div class="ac-new" onclick="crearNuevoCliente('${esc(q)}')">＋ Crear cliente: "${escHtml(q)}"</div>`;
+
+  list.innerHTML = html;
+  list.classList.add('show');
 }
 
 function pickCliente(codigo, nombre, rut, isNew) {
-  state.cliente = { codigo, nombre, rut, isNew:!!isNew };
+  state.cliente = { codigo, nombre, rut, isNew: !!isNew };
   document.getElementById('clienteInput').value = `${codigo} ${nombre}`;
   document.getElementById('clienteList').classList.remove('show');
   document.getElementById('clienteHint').innerHTML = isNew
-    ? `<span class="badge badge-warn">⚠ Cliente nuevo · código ${codigo}</span>`
-    : `Código: <strong>${codigo}</strong>`;
+    ? `<span class="badge badge-warn">⚠ Cliente nuevo · código ${codigo} pendiente validación</span>`
+    : `Código existente: <strong>${codigo}</strong>`;
   document.getElementById('step2Next').disabled = false;
 }
 
 function crearNuevoCliente(nombreRaw) {
-  if (!cacheGeneral) { toast('Aún cargando datos…',true); return; }
-  const max = cacheGeneral.reduce((m,c)=>Math.max(m,+c.codigo||0),0);
-  pickCliente(String(max+1).padStart(3,'0'), nombreRaw.trim(), '', true);
+  const nombre = nombreRaw.trim();
+  if (!cacheGeneral) { toast('Aún cargando datos…', true); return; }
+  const max = cacheGeneral.reduce((m, c) => Math.max(m, +c.codigo || 0), 0);
+  pickCliente(String(max + 1).padStart(3,'0'), nombre, '', true);
 }
 
+// ============================================================
+// STEP 2b — PRESUPUESTO ORIGINAL (adicionales)
+// ============================================================
 function renderOrigSugg(q) {
   const list = document.getElementById('origList');
   const query = q.trim().toLowerCase();
-  if (!cacheCentroCostos) { list.innerHTML='<div class="ac-empty">Cargando…</div>'; list.classList.add('show'); return; }
-  const originales = cacheCentroCostos.filter(p=>/-O\d{2}-/.test(p.id));
-  let matches = query.length===0 ? originales.slice(-8).reverse()
-    : originales.filter(p=>p.id.toLowerCase().includes(query)||p.nombreProyecto.toLowerCase().includes(query)||p.clienteNombre.toLowerCase().includes(query)).slice(0,8);
+  if (!cacheCentroCostos) { list.innerHTML = '<div class="ac-empty">Cargando…</div>'; list.classList.add('show'); return; }
+
+  const originales = cacheCentroCostos.filter(p => /-O\d{2}-/.test(p.id));
+  let matches = query.length === 0
+    ? originales.slice(-8).reverse()
+    : originales.filter(p =>
+        p.id.toLowerCase().includes(query) ||
+        p.nombreProyecto.toLowerCase().includes(query) ||
+        p.clienteNombre.toLowerCase().includes(query)
+      ).slice(0, 8);
+
   list.innerHTML = matches.length
-    ? matches.map(p=>`<div class="ac-item" onclick="pickOrig('${esc(p.id)}','${esc(p.nombreProyecto)}')">
-        <span>${escH(p.nombreProyecto||'(sin nombre)')}</span><span class="ac-code">${escH(p.id)}</span></div>`).join('')
-    : '<div class="ac-empty">No encontrado.</div>';
+    ? matches.map(p => `
+        <div class="ac-item" onclick="pickOrig('${esc(p.id)}','${esc(p.nombreProyecto)}')">
+          <span>${escHtml(p.nombreProyecto || '(sin nombre)')}</span>
+          <span class="ac-code">${escHtml(p.id)}</span>
+        </div>`).join('')
+    : '<div class="ac-empty">No se encontró. Verifica el código.</div>';
+
   list.classList.add('show');
 }
 
@@ -320,79 +415,67 @@ function pickOrig(codigo, nombreProyecto) {
   state.origPresupuesto = { codigo, nombreProyecto };
   document.getElementById('origInput').value = codigo;
   document.getElementById('origList').classList.remove('show');
-  document.getElementById('origHint').innerHTML = `Adicional de: <strong>${escH(nombreProyecto||codigo)}</strong>`;
+  document.getElementById('origHint').innerHTML = `Adicional de: <strong>${escHtml(nombreProyecto || codigo)}</strong>`;
   document.getElementById('step2bNext').disabled = false;
+  // Pre-poblar cliente desde el código original
   const m = codigo.match(/^(\d{3})-/);
   if (m && cacheGeneral) {
-    const cli = cacheGeneral.find(c=>c.codigo===m[1]);
-    if (cli) state.cliente = { codigo:cli.codigo, nombre:cli.nombre, rut:cli.rut, isNew:false };
+    const cli = cacheGeneral.find(c => c.codigo === m[1]);
+    if (cli) state.cliente = { codigo: cli.codigo, nombre: cli.nombre, rut: cli.rut, isNew: false };
   }
 }
 
 // ============================================================
-// PASO 3 — INGENIERO + NOMBRE
+// STEP 3 — INGENIERO + NOMBRE
 // ============================================================
 function buildIngenieroPills() {
   document.getElementById('ingenieroPills').innerHTML =
-    CONFIG.INGENIEROS.map(ing=>`<button type="button" class="pill" data-ini="${ing.iniciales}"
-      onclick="selectIngeniero('${ing.iniciales}')">${ing.iniciales} · ${ing.nombre.split(' ')[0]}</button>`).join('');
+    CONFIG.INGENIEROS.map(ing => `
+      <button type="button" class="pill" data-ini="${ing.iniciales}" onclick="selectIngeniero('${ing.iniciales}')">
+        ${ing.iniciales} · ${ing.nombre.split(' ')[0]}
+      </button>`).join('');
 }
 
 function selectIngeniero(ini) {
-  state.ingeniero = CONFIG.INGENIEROS.find(i=>i.iniciales===ini);
-  document.querySelectorAll('#ingenieroPills .pill').forEach(p=>p.classList.toggle('selected',p.dataset.ini===ini));
+  state.ingeniero = CONFIG.INGENIEROS.find(i => i.iniciales === ini);
+  document.querySelectorAll('#ingenieroPills .pill').forEach(p =>
+    p.classList.toggle('selected', p.dataset.ini === ini));
   validateStep3();
 }
 
 function validateStep3() {
-  document.getElementById('step3Next').disabled = !(state.ingeniero && state.nombreProyecto.trim().length>2);
-}
-
-// ============================================================
-// PASO 4 — FINANCIERO
-// ============================================================
-function recalcFin() {
-  const v = n => Math.max(0, parseFloat(document.getElementById(n)?.value)||0);
-  const mat = v('fMateriales'), mo = v('fManoObra'), gg = v('fGG'),
-        co = v('fCO'), util = v('fUtilidad');
-  const ggNeto = Math.max(0, gg - co);
-  const neto = mat + mo + ggNeto + co + util;
-  document.getElementById('fCostoNeto').value = neto > 0 ? neto.toFixed(0) : '';
-  state.fin = { materiales:mat, manoObra:mo, gg, co, utilidad:util, ggNeto, costoNeto:neto };
-
-  const fmt = x => x > 0 ? '$' + x.toLocaleString('es-CL') : '—';
-  const showRes = mat>0||mo>0||gg>0||co>0||util>0;
-  document.getElementById('finResumen').style.display = showRes ? 'block' : 'none';
-  if (showRes) {
-    document.getElementById('rMat').textContent = fmt(mat);
-    document.getElementById('rMO').textContent = fmt(mo);
-    document.getElementById('rGG').textContent = fmt(ggNeto);
-    document.getElementById('rCO').textContent = fmt(co);
-    document.getElementById('rUtil').textContent = fmt(util);
-    document.getElementById('rNeto').textContent = fmt(neto);
-  }
-  // Habilitar botón solo si todos los campos tienen valor > 0
-  const allFilled = mat>0 && mo>0 && gg>0 && co>0 && util>0;
-  document.getElementById('step4Next').disabled = !allFilled;
+  document.getElementById('step3Next').disabled =
+    !(state.ingeniero && state.nombreProyecto.trim().length > 2);
 }
 
 // ============================================================
 // GENERACIÓN PRINCIPAL
 // ============================================================
 async function ejecutarGeneracion() {
+  // Deshabilitar el botón de inmediato para evitar doble clic
+  const btnGenerar = document.getElementById('step4Next');
+  btnGenerar.disabled = true;
+  btnGenerar.textContent = 'Procesando…';
+
   showLoading('Calculando correlativo…');
   try {
+    requireToken();
+
+    // 1) Calcular código
     const codigoFinal = calcularCodigo();
-    if (!validarCodigo(codigoFinal)) throw new Error('Código con formato inesperado: ' + codigoFinal);
 
+    // Validar formato antes de escribir
+    if (!validarCodigoFormato(codigoFinal)) {
+      throw new Error(`Código generado con formato inesperado: ${codigoFinal}. Contacta a Carlos Braun.`);
+    }
+
+    // 2) Guardar en Sheets
     showLoading('Guardando en planilla…');
-    const rowIndex = await guardarEnSheets(codigoFinal);
+    await guardarEnSheets(codigoFinal);
 
-    showLoading('Aplicando color de marcado…');
-    await marcarFilaColor(rowIndex);
-
-    goStep(5);
-    renderResultado(codigoFinal);
+    // 3) Crear carpetas en Drive (con feedback visual)
+    goStep(4);
+    renderResultBase(codigoFinal);
     hideLoading();
 
     await crearCarpetasDrive(codigoFinal);
@@ -400,387 +483,226 @@ async function ejecutarGeneracion() {
     todayHistory.unshift({
       codigo: codigoFinal,
       proyecto: state.nombreProyecto,
-      hora: new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}),
+      hora: new Date().toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit' }),
     });
-    toast('Código, planilla y carpetas creados ✓');
+
+    toast('Código y carpetas creados correctamente ✓');
   } catch(e) {
     console.error(e);
     hideLoading();
+    // Rehabilitar botón para que el usuario pueda reintentar
+    btnGenerar.disabled = false;
+    btnGenerar.textContent = 'Generar código y carpetas →';
     toast('Error: ' + e.message, true);
   }
 }
 
 function calcularCodigo() {
-  if (state.tipo==='O') {
-    const corr = nextCorrOriginal(state.cliente.codigo, anioActual);
+  if (state.tipo === 'O') {
+    const corr = nextCorrelativoOriginal(state.cliente.codigo, anioActual);
     return `${state.cliente.codigo}-${corr}-O${anioSufijo}-${state.ingeniero.iniciales}`;
   } else {
     const prefijo = state.origPresupuesto.codigo.split('-').slice(0,2).join('-');
-    const corr = nextCorrAdicional(state.origPresupuesto.codigo);
+    const corr    = nextCorrelativoAdicional(state.origPresupuesto.codigo);
     return `${prefijo}-A${anioSufijo}-${state.ingeniero.iniciales}-${corr}`;
   }
 }
 
-function nextCorrOriginal(cli, anio) {
+function nextCorrelativoOriginal(clienteCod, anio) {
   const suf = String(anio).slice(-2);
   let max = 0;
-  for (const p of (cacheCentroCostos||[])) {
-    const m = p.id.match(new RegExp(`^${cli}-(\\d{3})-O${suf}-`));
+  for (const p of (cacheCentroCostos || [])) {
+    const m = p.id.match(new RegExp(`^${clienteCod}-(\\d{3})-O${suf}-`));
     if (m) max = Math.max(max, +m[1]);
   }
-  return String(max+1).padStart(3,'0');
+  return String(max + 1).padStart(3, '0');
 }
 
-function nextCorrAdicional(codOrig) {
-  const base = codOrig.split('-').slice(0,2).join('-');
+function nextCorrelativoAdicional(codigoOriginal) {
+  const base = codigoOriginal.split('-').slice(0,2).join('-');
   let max = 0;
-  for (const p of (cacheCentroCostos||[])) {
+  for (const p of (cacheCentroCostos || [])) {
     const m = p.id.match(new RegExp(`^${base}-A\\d{2}-[A-Z]{2,3}-(\\d{3})$`));
     if (m) max = Math.max(max, +m[1]);
   }
-  return String(max+1).padStart(3,'0');
-}
-
-function validarCodigo(c) {
-  return /^\d{3}-\d{3}-[OA]\d{2}-[A-Z]{2,3}(-\d{3})?$/.test(c);
+  return String(max + 1).padStart(3, '0');
 }
 
 async function guardarEnSheets(codigoFinal) {
-  // PROTECCIÓN: verificar que no se supere el límite de filas para evitar escritura infinita
-  const MAX_FILAS = 3000;
-  const filaActual = (cacheCentroCostos || []).length + 4; // fila 4 = primera de datos
-  if (filaActual > MAX_FILAS) {
-    throw new Error(`Límite de seguridad alcanzado (${MAX_FILAS} filas). Contactar al administrador.`);
-  }
-
-  // PROTECCIÓN: verificar que el código no existe ya en la planilla
-  const codigoExistente = (cacheCentroCostos || []).find(p => p.id === codigoFinal);
-  if (codigoExistente) {
-    throw new Error(`El código ${codigoFinal} ya existe en la planilla. No se generó duplicado.`);
-  }
-
-  // Si cliente nuevo, agregar a General
   if (state.cliente?.isNew) {
     await sheetsAppend(CONFIG.SHEET_GENERAL, [
-      '','','',`${state.cliente.codigo} ${state.cliente.nombre}`,
-      state.cliente.rut||'','','','','','','','','',
       '','','',
+      `${state.cliente.codigo} ${state.cliente.nombre}`,
+      state.cliente.rut || '', '', '', '', '', '', '', '', '',
+      `Pendiente validación ${CONFIG.VALIDADOR}`, '', '',
     ]);
-    cacheGeneral.push({ codigo:state.cliente.codigo, nombre:state.cliente.nombre, rut:'' });
+    cacheGeneral.push({ codigo: state.cliente.codigo, nombre: state.cliente.nombre, rut: '' });
   }
 
   const fecha = formatFecha(new Date());
-  const f = state.fin;
-  // Columnas exactas según encabezados de Centros de Costos:
-  // A=Id, B=NombreProyecto, C=NombreCompleto, D=Cliente, E=Responsable,
-  // F=FechaSolicitud, G=FechaInicio, H=FechaEnvío, I=FechaAdj,
-  // J=Estado, K=TipoServicio, L=REV, M=FechaInicioTrab, N=FechaTermTrab,
-  // O=Materiales, P=ManoObra, Q=GG, R=CostoOficina, S=Utilidad,
-  // T=CostoNetoTotal, U=ValorContratoNeto, V=Estudió, W=Año
-  const row = [
-    codigoFinal,                                        // A - Id
-    state.nombreProyecto,                               // B - Nombre Proyecto
-    `${codigoFinal} ${state.nombreProyecto}`,           // C - Nombre completo
-    `${state.cliente.codigo} ${state.cliente.nombre}`,  // D - Cliente
-    state.ingeniero.nombre,                             // E - Responsable
-    '',                                                 // F - Fecha Solicitud
-    '',                                                 // G - Fecha inicio
-    fecha,                                              // H - Fecha envío ✓
-    '',                                                 // I - Fecha adjudicación
-    'Esperando Respuesta',                              // J - Estado ✓
-    '',                                                 // K - Tipo de Servicio
-    1,                                                  // L - REV ✓
-    '',                                                 // M - Fecha inicio trabajos
-    '',                                                 // N - Fecha término trabajos
-    f.materiales||'',                                   // O - Materiales
-    f.manoObra||'',                                     // P - Mano de Obra
-    f.ggNeto||'',                                       // Q - GG (neto sin oficina)
-    f.co||'',                                           // R - Costo Oficina
-    f.utilidad||'',                                     // S - Utilidad
-    f.costoNeto||'',                                    // T - Costo Neto Total
-    f.costoNeto||'',                                    // U - Valor Contrato Neto
-    state.ingeniero.nombre,                             // V - Estudió
-    anioActual,                                         // W - Año
-  ];
+  const nombreProy = sanitizeInput(state.nombreProyecto, 200);
+  const nombreCli  = sanitizeInput(state.cliente.nombre, 100);
+  await sheetsAppend(CONFIG.SHEET_CENTRO_COSTOS, [
+    codigoFinal,
+    nombreProy,
+    `${codigoFinal} ${nombreProy}`,
+    `${state.cliente.codigo} ${nombreCli}`,
+    state.ingeniero.nombre,
+    fecha,
+    `Pendiente validación ${CONFIG.VALIDADOR}`,
+    '','','',
+    state.ingeniero.nombre,
+    anioActual,
+  ]);
 
-  const result = await sheetsAppend(`${CONFIG.SHEET_CENTRO_COSTOS}!A4:W3000`, row);
   cacheCentroCostos.push({
-    id:codigoFinal, nombreProyecto:state.nombreProyecto,
-    clienteCodigo:state.cliente.codigo, clienteNombre:state.cliente.nombre,
-    responsable:state.ingeniero.nombre, fecha, anio:String(anioActual),
+    id: codigoFinal, nombreProyecto: state.nombreProyecto,
+    clienteCodigo: state.cliente.codigo, clienteNombre: state.cliente.nombre,
+    responsable: state.ingeniero.nombre, fecha, anio: String(anioActual),
   });
-
-  // Extraer el índice de fila donde se insertó (base 0)
-  const updatedRange = result?.updates?.updatedRange || '';
-  const m = updatedRange.match(/:([A-Z]+)(\d+)$/);
-  return m ? parseInt(m[2],10)-1 : null;
-}
-
-async function marcarFilaColor(rowIndex) {
-  if (rowIndex === null) return;
-  try {
-    const sheetId = await sheetsGetSheetId(CONFIG.SHEET_CENTRO_COSTOS);
-    if (sheetId === null) return;
-    await sheetsBatchUpdate([{
-      repeatCell: {
-        range: { sheetId, startRowIndex:rowIndex, endRowIndex:rowIndex+1, startColumnIndex:0, endColumnIndex:20 },
-        cell: { userEnteredFormat: { backgroundColor: { red:1, green:0.949, blue:0.8 } } },
-        fields: 'userEnteredFormat.backgroundColor',
-      }
-    }]);
-  } catch(e) { console.warn('No se pudo marcar color:', e); }
 }
 
 // ============================================================
-// DRIVE
+// DRIVE: CREACIÓN DE CARPETAS CON FEEDBACK VISUAL
 // ============================================================
+let driveRows = [];   // lista de { label, status, id }
+
 function addDriveRow(label) {
   const idx = driveRows.length;
-  driveRows.push({ label, status:'spin', id:null });
-  renderDrive(); return idx;
+  driveRows.push({ label, status: 'spin', id: null });
+  renderDriveProgress();
+  return idx;
 }
-function updDriveRow(idx, status, id) {
-  driveRows[idx].status=status; driveRows[idx].id=id; renderDrive();
+function updateDriveRow(idx, status, id) {
+  driveRows[idx].status = status;
+  driveRows[idx].id = id;
+  renderDriveProgress();
 }
-function renderDrive() {
-  document.getElementById('driveProgress').innerHTML = driveRows.map(r=>`
+function renderDriveProgress() {
+  document.getElementById('driveProgress').innerHTML = driveRows.map(r => `
     <div class="dp-row">
-      <span>${r.status==='ok'?'📁':r.status==='err'?'❌':'⏳'}</span>
-      <span class="dp-label">${escH(r.label)}</span>
-      <span class="dp-status ${r.status}">${r.status==='ok'?'Creada':r.status==='err'?'Error':'Creando…'}</span>
-      ${r.id?`<a class="dp-link" href="${driveFolderUrl(r.id)}" target="_blank">Abrir ↗</a>`:''}
+      <span class="dp-icon">${r.status === 'ok' ? '📁' : r.status === 'err' ? '❌' : '⏳'}</span>
+      <span class="dp-label">${escHtml(r.label)}</span>
+      <span class="dp-status ${r.status}">${r.status === 'ok' ? 'Creada' : r.status === 'err' ? 'Error' : 'Creando…'}</span>
+      ${r.id ? `<a class="dp-link" href="${driveFolderUrl(r.id)}" target="_blank">Abrir ↗</a>` : ''}
     </div>`).join('');
 }
 
 async function crearCarpetasDrive(codigoFinal) {
   driveRows = [];
+
   try {
-    // 1) Encontrar carpeta del año actual buscando por nombre que contenga el año
-    const idxAnio = addDriveRow(`📅 Buscando carpeta del año ${anioActual}…`);
-    const anioId = await buscarCarpetaAnio();
-    updDriveRow(idxAnio,'ok',anioId);
+    // ── Carpeta del año ────────────────────────────────────────
+    const idxAnio = addDriveRow(`📅 ${anioActual}`);
+    const anioId  = await driveEnsureFolder(String(anioActual), CONFIG.DRIVE_OBRAS_ROOT);
+    updateDriveRow(idxAnio, 'ok', anioId);
 
-    // 2) Buscar carpeta del cliente dentro del año
-    const cliId = await resolverCarpetaCliente(anioId, codigoFinal);
-    if (!cliId) return; // usuario canceló
+    // ── Carpeta del cliente ────────────────────────────────────
+    const nombreCliente = `${state.cliente.codigo} ${state.cliente.nombre}`;
+    const idxCli  = addDriveRow(`🏢 ${nombreCliente}`);
+    const cliId   = await driveEnsureFolder(nombreCliente, anioId);
+    updateDriveRow(idxCli, 'ok', cliId);
 
-    // 3) Crear estructura del presupuesto
-    if (state.tipo==='O') {
+    if (state.tipo === 'O') {
+      // ── Original: carpeta del presupuesto + estructura completa
       await crearEstructuraCompleta(cliId, codigoFinal);
     } else {
-      // Adicional: buscar carpeta del original dentro del cliente
-      const codOrig = state.origPresupuesto.codigo;
-      const idxO = addDriveRow(`🔗 Original: ${codOrig}`);
-      // buscar por código o por "código nombre"
-      const origId = await driveEncontrarPorNombreParcial(codOrig, cliId)
-        || await driveEnsureFolder(codOrig, cliId);
-      updDriveRow(idxO,'ok',origId);
-      const idxE = addDriveRow('📂 02 - EJECUCIÓN PROYECTO');
-      const ejecId = await driveEnsureFolder('02 - EJECUCIÓN PROYECTO', origId);
-      updDriveRow(idxE,'ok',ejecId);
-      const idxA = addDriveRow('📂 04 - ADICIONALES');
-      const adicsId = await driveEnsureFolder('04 - ADICIONALES', ejecId);
-      updDriveRow(idxA,'ok',adicsId);
+      // ── Adicional: buscar carpeta del original → Ejecución → 04 ADICIONALES
+      const codOrig      = state.origPresupuesto.codigo;
+      const idxOrigFold  = addDriveRow(`🔗 Ubicando original: ${codOrig}`);
+      const origRootId   = await driveEnsureFolder(codOrig, cliId);
+      updateDriveRow(idxOrigFold, 'ok', origRootId);
+
+      const idxEjec = addDriveRow('📂 02 - EJECUCIÓN PROYECTO');
+      const ejecId  = await driveEnsureFolder('02 - EJECUCIÓN PROYECTO', origRootId);
+      updateDriveRow(idxEjec, 'ok', ejecId);
+
+      const idxAdics = addDriveRow('📂 04 - ADICIONALES');
+      const adicsId  = await driveEnsureFolder('04 - ADICIONALES', ejecId);
+      updateDriveRow(idxAdics, 'ok', adicsId);
+
+      // Carpeta del adicional con su propia estructura Estudio + Ejecución
       await crearEstructuraCompleta(adicsId, codigoFinal);
     }
   } catch(e) {
-    console.error('Drive error:', e);
-    toast('Código guardado, pero hubo un error en Drive: ' + e.message, true);
+    console.error('Error Drive:', e);
+    toast('Código guardado, pero hubo un error creando algunas carpetas en Drive.', true);
   }
 }
 
-/** Busca dentro de la raíz OBRAS la carpeta cuyo nombre contenga el año actual.
- *  Si no existe, la crea con el nombre "PROYECTOS [año]". */
-async function buscarCarpetaAnio() {
-  const anioStr = String(anioActual);
-  // Listar todas las subcarpetas de la raíz
-  const carpetas = await driveListarCarpetas(CONFIG.DRIVE_OBRAS_ROOT);
-  // Buscar carpeta que contenga el año en su nombre
-  const match = carpetas.find(c => c.name.includes(anioStr));
-  if (match) return match.id;
-  // No existe → crear
-  return driveCreateFolder(`PROYECTOS ${anioStr}`, CONFIG.DRIVE_OBRAS_ROOT);
-}
+async function crearEstructuraCompleta(parentId, codigoPpto) {
+  // Carpeta raíz del presupuesto
+  const idxRoot = addDriveRow(`📁 ${codigoPpto}`);
+  const rootId  = await driveEnsureFolder(codigoPpto, parentId);
+  updateDriveRow(idxRoot, 'ok', rootId);
 
-/** Busca la carpeta del cliente dentro de la carpeta del año.
- *  - Si hay 1 coincidencia: pide confirmación al usuario.
- *  - Si hay varias: muestra lista para que el usuario elija.
- *  - Si no hay ninguna: crea la carpeta automáticamente.
- *  Devuelve el ID de la carpeta elegida o null si el usuario canceló. */
-async function resolverCarpetaCliente(anioId, codigoFinal) {
-  const codigo = state.cliente.codigo;   // "002"
-  const nombre = state.cliente.nombre;   // "SALFA"
-  const carpetas = await driveListarCarpetas(anioId);
-
-  // Buscar coincidencias: nombre de carpeta contiene el código O el nombre del cliente
-  const matches = carpetas.filter(c => {
-    const cn = c.name.toUpperCase();
-    return cn.includes(codigo) || cn.includes(nombre.toUpperCase().slice(0,4));
-  });
-
-  if (matches.length === 0) {
-    // No existe → crear carpeta del cliente y continuar
-    const nombreNuevo = `${codigo} ${nombre}`;
-    const idxCli = addDriveRow(`🏢 Creando: ${nombreNuevo}`);
-    const cliId = await driveCreateFolder(nombreNuevo, anioId);
-    updDriveRow(idxCli,'ok',cliId);
-    return cliId;
-  }
-
-  // Existe al menos una coincidencia → pedir confirmación al usuario
-  return new Promise((resolve) => {
-    mostrarModalCarpeta(matches, codigo, nombre, anioId, resolve);
-  });
-}
-
-/** Muestra modal para que el usuario confirme/elija la carpeta del cliente. */
-function mostrarModalCarpeta(matches, codigo, nombre, anioId, resolve) {
-  const modal = document.getElementById('folderModal');
-  const content = document.getElementById('folderModalContent');
-
-  let html = `<p style="font-size:13px;color:var(--muted);margin:0 0 14px;">
-    Encontré ${matches.length > 1 ? 'estas carpetas' : 'esta carpeta'} para el cliente
-    <strong>${codigo} ${nombre}</strong>. ¿En cuál quieres guardar el presupuesto?</p>`;
-
-  html += matches.map((c,i) => `
-    <div class="folder-option" onclick="elegirCarpeta(${i})" data-idx="${i}">
-      <span>📁</span>
-      <div style="flex:1">
-        <div style="font-weight:700;font-size:13.5px;color:var(--teal)">${escH(c.name)}</div>
-      </div>
-      <span style="font-size:11px;color:var(--rust);font-weight:700">Elegir →</span>
-    </div>`).join('');
-
-  html += `<div class="folder-option" onclick="elegirCarpeta(-1)" style="border-color:var(--rust);margin-top:6px;">
-    <span>➕</span>
-    <div style="flex:1">
-      <div style="font-weight:700;font-size:13px;color:var(--rust)">Crear carpeta nueva: ${escH(codigo+' '+nombre)}</div>
-    </div>
-    <span style="font-size:11px;color:var(--rust);font-weight:700">Crear →</span>
-  </div>`;
-
-  content.innerHTML = html;
-  modal.classList.add('show');
-
-  // Guardar contexto para cuando el usuario elija
-  window._folderResolve = resolve;
-  window._folderMatches = matches;
-  window._folderAnioId  = anioId;
-  window._folderCodigo  = codigo;
-  window._folderNombre  = nombre;
-}
-
-async function elegirCarpeta(idx) {
-  document.getElementById('folderModal').classList.remove('show');
-  const { _folderResolve: resolve, _folderMatches: matches,
-          _folderAnioId: anioId, _folderCodigo: codigo, _folderNombre: nombre } = window;
-
-  let cliId;
-  if (idx === -1) {
-    // Crear nueva
-    const nombreNuevo = `${codigo} ${nombre}`;
-    const idxCli = addDriveRow(`🏢 Creando: ${nombreNuevo}`);
-    cliId = await driveCreateFolder(nombreNuevo, anioId);
-    updDriveRow(idxCli,'ok',cliId);
-  } else {
-    const elegida = matches[idx];
-    const idxCli = addDriveRow(`🏢 ${elegida.name}`);
-    cliId = elegida.id;
-    updDriveRow(idxCli,'ok',cliId);
-  }
-  resolve(cliId);
-}
-
-/** Lista todas las subcarpetas de un parent. */
-async function driveListarCarpetas(parentId) {
-  const q = `mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
-  const url = `${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true`;
-  const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-  if (!r.ok) throw new Error(`Drive listar carpetas: ${r.status}`);
-  return (await r.json()).files || [];
-}
-
-/** Busca una carpeta cuyo nombre contenga el término dado (sin distinción de mayúsculas). */
-async function driveEncontrarPorNombreParcial(termino, parentId) {
-  const carpetas = await driveListarCarpetas(parentId);
-  const m = carpetas.find(c => c.name.toUpperCase().includes(termino.toUpperCase()));
-  return m?.id || null;
-}
-
-async function crearEstructuraCompleta(parentId, codigo) {
-  const nombreCarpeta = `${codigo} ${state.nombreProyecto}`.slice(0, 140); // Drive límite ~140 chars
-  const idxR = addDriveRow(`📁 ${nombreCarpeta}`);
-  const rootId = await driveEnsureFolder(nombreCarpeta, parentId);
-  updDriveRow(idxR,'ok',rootId);
-
+  // 01 - ESTUDIO PROYECTO
   const idxEst = addDriveRow('📂 01 - ESTUDIO PROYECTO');
-  const estId = await driveEnsureFolder('01 - ESTUDIO PROYECTO', rootId);
-  updDriveRow(idxEst,'ok',estId);
+  const estId  = await driveEnsureFolder('01 - ESTUDIO PROYECTO', rootId);
+  updateDriveRow(idxEst, 'ok', estId);
   for (const sub of CONFIG.SUBCARPETAS_ESTUDIO) {
     const idx = addDriveRow(`   └ ${sub}`);
-    updDriveRow(idx,'ok', await driveEnsureFolder(sub, estId));
+    const id  = await driveEnsureFolder(sub, estId);
+    updateDriveRow(idx, 'ok', id);
   }
 
+  // 02 - EJECUCIÓN PROYECTO
   const idxEjec = addDriveRow('📂 02 - EJECUCIÓN PROYECTO');
-  const ejecId = await driveEnsureFolder('02 - EJECUCIÓN PROYECTO', rootId);
-  updDriveRow(idxEjec,'ok',ejecId);
+  const ejecId  = await driveEnsureFolder('02 - EJECUCIÓN PROYECTO', rootId);
+  updateDriveRow(idxEjec, 'ok', ejecId);
   for (const sub of CONFIG.SUBCARPETAS_EJECUCION) {
     const idx = addDriveRow(`   └ ${sub}`);
-    updDriveRow(idx,'ok', await driveEnsureFolder(sub, ejecId));
+    const id  = await driveEnsureFolder(sub, ejecId);
+    updateDriveRow(idx, 'ok', id);
   }
 }
 
 // ============================================================
-// RESULTADO
+// RESULTADO VISUAL
 // ============================================================
-function renderResultado(codigo) {
+function renderResultBase(codigo) {
   document.getElementById('resultCodeText').textContent = codigo;
-  document.getElementById('badgeWrap').innerHTML = state.cliente?.isNew
-    ? `<div style="margin-bottom:10px;"><span class="badge badge-warn">⚠ Cliente nuevo agregado</span></div>`
-    : `<div style="margin-bottom:10px;"><span class="badge badge-good">✓ Guardado en planilla · fila marcada en amarillo</span></div>`;
 
-  const f = state.fin;
-  const fmt = x => '$' + (x||0).toLocaleString('es-CL');
-  const bd = state.tipo==='O' ? [
-    ['Cliente', `${state.cliente.codigo} · ${state.cliente.nombre}`],
-    ['Tipo', `Original (O${anioSufijo})`],
-    ['Ingeniero', `${state.ingeniero.iniciales} · ${state.ingeniero.nombre}`],
-    ['Materiales', fmt(f.materiales)],
-    ['Mano de Obra', fmt(f.manoObra)],
-    ['GG neto', fmt(f.ggNeto)],
-    ['Costo Oficina', fmt(f.co)],
-    ['Utilidad', fmt(f.utilidad)],
-    ['Costo Neto', fmt(f.costoNeto)],
-  ] : [
-    ['Original', state.origPresupuesto.codigo],
-    ['Cliente', `${state.cliente?.codigo} · ${state.cliente?.nombre}`],
-    ['Tipo', `Adicional (A${anioSufijo})`],
-    ['Ingeniero', `${state.ingeniero.iniciales} · ${state.ingeniero.nombre}`],
-    ['Costo Neto', fmt(f.costoNeto)],
-  ];
+  const isNuevo = state.cliente?.isNew;
+  document.getElementById('newClientBadgeWrap').innerHTML = isNuevo
+    ? `<div style="margin-bottom:10px;"><span class="badge badge-warn">⚠ Cliente nuevo · pendiente validación de ${CONFIG.VALIDADOR}</span></div>`
+    : `<div style="margin-bottom:10px;"><span class="badge badge-good">✓ Guardado en planilla · pendiente validación CB</span></div>`;
+
+  const bd = state.tipo === 'O'
+    ? [
+        ['Cliente', `${state.cliente.codigo} · ${state.cliente.nombre}`],
+        ['Tipo', `Original (O${anioSufijo})`],
+        ['Ingeniero', `${state.ingeniero.iniciales} · ${state.ingeniero.nombre}`],
+        ['Año', anioActual],
+      ]
+    : [
+        ['Presupuesto original', state.origPresupuesto.codigo],
+        ['Cliente', `${state.cliente?.codigo} · ${state.cliente?.nombre}`],
+        ['Tipo', `Adicional (A${anioSufijo})`],
+        ['Ingeniero', `${state.ingeniero.iniciales} · ${state.ingeniero.nombre}`],
+      ];
+
   document.getElementById('breakdownWrap').innerHTML =
-    bd.map(([k,v])=>`<div class="bd-row"><span class="k">${escH(k)}</span><span class="v">${escH(String(v))}</span></div>`).join('');
+    bd.map(([k,v]) => `<div class="bd-row"><span class="k">${escHtml(k)}</span><span class="v">${escHtml(String(v))}</span></div>`).join('');
 }
 
 function copyCode() {
-  const t = document.getElementById('resultCodeText').textContent;
-  navigator.clipboard.writeText(t).then(()=>toast('Código copiado ✓')).catch(()=>toast('Selecciónalo manualmente',true));
+  const text = document.getElementById('resultCodeText').textContent;
+  navigator.clipboard.writeText(text)
+    .then(() => toast('Código copiado ✓'))
+    .catch(() => toast('Selecciónalo manualmente para copiarlo.', true));
 }
 
 function resetFlow() {
-  state = { tipo:null,cliente:null,origPresupuesto:null,ingeniero:null,nombreProyecto:'',
-    fin:{materiales:0,manoObra:0,gg:0,co:0,utilidad:0,costoNeto:0,ggNeto:0} };
-  driveRows=[];
-  ['clienteInput','origInput','nombreProyecto','fMateriales','fManoObra','fGG','fCO','fUtilidad','fCostoNeto']
-    .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
-  ['clienteHint','origHint'].forEach(id=>{ const el=document.getElementById(id); if(el) el.innerHTML=''; });
-  ['btnOriginal','btnAdicional'].forEach(id=>document.getElementById(id)?.classList.remove('selected'));
-  document.querySelectorAll('#ingenieroPills .pill').forEach(p=>p.classList.remove('selected'));
-  document.getElementById('step2Next').disabled=true;
-  document.getElementById('step2bNext').disabled=true;
-  document.getElementById('step3Next').disabled=true;
-  document.getElementById('step4Next').disabled=true;
-  document.getElementById('finResumen').style.display='none';
+  state = { tipo:null, cliente:null, origPresupuesto:null, ingeniero:null, nombreProyecto:'' };
+  driveRows = [];
+  ['clienteInput','origInput','nombreProyecto'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+  ['clienteHint','origHint'].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML=''; });
+  ['btnOriginal','btnAdicional'].forEach(id => document.getElementById(id)?.classList.remove('selected'));
+  document.querySelectorAll('#ingenieroPills .pill').forEach(p => p.classList.remove('selected'));
+  document.getElementById('step2Next').disabled  = true;
+  document.getElementById('step2bNext').disabled = true;
+  document.getElementById('step3Next').disabled  = true;
   goStep(1);
 }
 
@@ -788,22 +710,46 @@ function resetFlow() {
 // HISTORIAL
 // ============================================================
 function openHistory() {
-  document.getElementById('historyList').innerHTML = todayHistory.length
-    ? todayHistory.map(h=>`<div class="hist-item">
-        <div><div class="hist-code">${escH(h.codigo)}</div><div class="hist-meta">${escH(h.proyecto)}</div></div>
-        <div class="hist-meta">${h.hora}</div></div>`).join('')
-    : '<div class="ac-empty">Sin códigos en esta sesión aún.</div>';
+  const list = document.getElementById('historyList');
+  list.innerHTML = todayHistory.length
+    ? todayHistory.map(h => `
+        <div class="hist-item">
+          <div><div class="code">${escHtml(h.codigo)}</div><div class="meta">${escHtml(h.proyecto)}</div></div>
+          <div class="meta">${h.hora}</div>
+        </div>`).join('')
+    : '<div class="ac-empty">Aún no has generado códigos en esta sesión.</div>';
   document.getElementById('historyModal').classList.add('show');
 }
 function closeHistory() { document.getElementById('historyModal').classList.remove('show'); }
-
-function toggleManual() {
-  document.getElementById('manualOverlay').classList.toggle('show');
-}
 
 // ============================================================
 // UTILS
 // ============================================================
 function formatFecha(d) { return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; }
-function escH(s) { return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// Escapa HTML para prevenir XSS en cualquier output dinámico
+function escHtml(s) {
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 function esc(s) { return String(s||'').replace(/'/g,"\\'"); }
+
+// Sanitiza texto libre antes de escribir en Sheets:
+// - Elimina fórmulas (=, +, -, @) al inicio (CSV/Sheet injection)
+// - Limita longitud máxima
+function sanitizeInput(s, maxLen = 200) {
+  let v = String(s || '').trim().slice(0, maxLen);
+  if (/^[=+\-@]/.test(v)) v = "'" + v;  // prefijo que Google Sheets interpreta como texto
+  return v;
+}
+
+// Valida que el código generado tenga el formato esperado antes de escribir
+function validarCodigoFormato(codigo) {
+  // Original:   001-001-O26-CB
+  // Adicional:  001-001-A26-CB-001
+  return /^\d{3}-\d{3}-[OA]\d{2}-[A-Z]{2,3}(-\d{3})?$/.test(codigo);
+}
+
+// Valida que el access token existe antes de hacer llamadas API
+function requireToken() {
+  if (!accessToken) throw new Error('Sesión expirada. Por favor recarga e inicia sesión nuevamente.');
+}
