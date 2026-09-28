@@ -17,6 +17,14 @@ const CONFIG = {
   // Carpeta raíz "obras" en Drive
   DRIVE_OBRAS_ROOT: '1Lm2X3Uz_H_sUkD7Zll0JjKPSdaa1EW9n',
 
+  // IDs fijos de carpetas por año — evita confusión con carpetas mal nombradas
+  // Agregar aquí el ID de cada año nuevo cuando se cree
+  DRIVE_ANIO_IDS: {
+    '2024': '19jjVVj7jWfLM1krFfAf61PMUH-StkgPN',
+    '2025': '1kFrzs2dmcLCiDn8BbTB3gkr__PF-_JrO',
+    '2026': '1yHF8CsBSyY4_brUAGpTFKjSdME8k5LGr',
+  },
+
   // Carpeta "pendientes" para clientes sin carpeta asignada aún
   DRIVE_PENDIENTES: '14seaVDIBeeWWLQ9ewLCcrl0qTHzRBPpK',
 
