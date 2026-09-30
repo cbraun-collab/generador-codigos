@@ -28,6 +28,9 @@ const CONFIG = {
   // Carpeta "pendientes" para clientes sin carpeta asignada aún
   DRIVE_PENDIENTES: '14seaVDIBeeWWLQ9ewLCcrl0qTHzRBPpK',
 
+  // Carpeta raíz de Charlas Diarias
+  DRIVE_CHARLAS_ROOT: '18er4JOP928529XE4hazxMNBuvjf6b63_',
+
   // Ingenieros activos — agrega o quita sin tocar app.js
   INGENIEROS: [
     { iniciales: 'CB', nombre: 'Carlos Braun' },

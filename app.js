@@ -515,6 +515,9 @@ async function ejecutarGeneracion() {
     // Crear carpetas (puede mostrar modal de selección)
     await crearCarpetasDrive(codigoFinal);
 
+    // Crear carpeta en Charlas Diarias
+    await crearCarpetaCharlas(codigoFinal);
+
     todayHistory.unshift({
       codigo: codigoFinal,
       proyecto: state.nombreProyecto,
@@ -677,13 +680,85 @@ async function crearCarpetasDrive(codigoFinal) {
   }
 }
 
-/** Busca dentro de la raíz OBRAS la carpeta cuyo nombre contenga
- *  "PROYECTOS" y el año actual. Si no existe, la crea. */
-async function buscarCarpetaAnio() {
-  const anioStr  = String(anioActual);
-  const carpetas = await driveListarCarpetas(CONFIG.DRIVE_OBRAS_ROOT);
+/** Crea la carpeta de la obra en Charlas Diarias con la misma
+ *  estructura que en Obras: año → cliente → código+nombre */
+async function crearCarpetaCharlas(codigoFinal) {
+  try {
+    addDriveRow('── Charlas Diarias ──────────────');
 
-  // Busca carpeta que contenga "PROYECTOS" Y el año (ej: "03 PROYECTOS 2026")
+    // 1. Carpeta del año (misma lógica que en Obras, pero dentro de Charlas)
+    const anioStr = String(anioActual);
+    let anioId;
+
+    // Buscar carpeta del año dentro de Charlas Diarias
+    const carpetasRaiz = await driveListarCarpetas(CONFIG.DRIVE_CHARLAS_ROOT);
+    const matchAnio = carpetasRaiz.find(c => {
+      const n = c.name.toUpperCase();
+      return n.includes('PROYECTOS') && n.includes(anioStr);
+    });
+
+    if (matchAnio) {
+      anioId = matchAnio.id;
+      const idxA = addDriveRow(`📅 Charlas ${anioStr}`);
+      updDriveRow(idxA, 'ok', anioId);
+    } else {
+      // Crear carpeta del año en Charlas
+      const numSig = String(carpetasRaiz.filter(c =>
+        c.name.toUpperCase().includes('PROYECTOS')).length + 1).padStart(2, '0');
+      const nombreAnio = `${numSig} PROYECTOS ${anioStr}`;
+      const idxA = addDriveRow(`📅 Creando en Charlas: ${nombreAnio}`);
+      anioId = await driveCreateFolder(nombreAnio, CONFIG.DRIVE_CHARLAS_ROOT);
+      updDriveRow(idxA, 'ok', anioId);
+    }
+
+    // 2. Carpeta del cliente dentro del año
+    const nombreCli = `${state.cliente.codigo} ${state.cliente.nombre}`;
+    const carpetasAnio = await driveListarCarpetas(anioId);
+    const matchCli = carpetasAnio.find(c =>
+      c.name.toUpperCase().startsWith(state.cliente.codigo + ' ') ||
+      c.name.toUpperCase().startsWith(state.cliente.codigo + '-')
+    );
+
+    let cliId;
+    if (matchCli) {
+      cliId = matchCli.id;
+      const idxC = addDriveRow(`🏢 Charlas: ${matchCli.name}`);
+      updDriveRow(idxC, 'ok', cliId);
+    } else {
+      const idxC = addDriveRow(`🏢 Creando en Charlas: ${nombreCli}`);
+      cliId = await driveCreateFolder(nombreCli, anioId);
+      updDriveRow(idxC, 'ok', cliId);
+    }
+
+    // 3. Carpeta de la obra (solo código + nombre, sin subcarpetas)
+    const nombreObra = `${codigoFinal} ${state.nombreProyecto}`.slice(0, 150);
+    const idxO = addDriveRow(`💬 ${nombreObra}`);
+    const obraId = await driveEnsureFolder(nombreObra, cliId);
+    updDriveRow(idxO, 'ok', obraId);
+
+  } catch(e) {
+    console.warn('Error creando carpeta en Charlas Diarias:', e);
+    // No interrumpir el flujo principal si falla Charlas
+    addDriveRow(`⚠️ Charlas Diarias: ${e.message}`);
+  }
+}
+
+/** Retorna el ID de la carpeta del año actual.
+ *  Primero busca en DRIVE_ANIO_IDS (más confiable).
+ *  Si no está configurado, busca por nombre dentro de la raíz. */
+async function buscarCarpetaAnio() {
+  const anioStr = String(anioActual);
+
+  // 1. Usar ID fijo si está configurado
+  if (CONFIG.DRIVE_ANIO_IDS && CONFIG.DRIVE_ANIO_IDS[anioStr]) {
+    const idxAnio = addDriveRow(`📅 ${anioStr} (carpeta configurada)`);
+    const id = CONFIG.DRIVE_ANIO_IDS[anioStr];
+    updDriveRow(idxAnio, 'ok', id);
+    return id;
+  }
+
+  // 2. Buscar por nombre dentro de la raíz (para años futuros no configurados)
+  const carpetas = await driveListarCarpetas(CONFIG.DRIVE_OBRAS_ROOT);
   const match = carpetas.find(c => {
     const n = c.name.toUpperCase();
     return n.includes('PROYECTOS') && n.includes(anioStr);
@@ -691,12 +766,12 @@ async function buscarCarpetaAnio() {
 
   if (match) return match.id;
 
-  // No existe → crear con formato estándar
-  const nuevas   = carpetas.filter(c => c.name.toUpperCase().includes('PROYECTOS'));
-  const numSig   = String(nuevas.length + 1).padStart(2, '0');
+  // 3. No existe → crear
+  const nuevas = carpetas.filter(c => c.name.toUpperCase().includes('PROYECTOS'));
+  const numSig = String(nuevas.length + 1).padStart(2, '0');
   const nombreNuevo = `${numSig} PROYECTOS ${anioStr}`;
   const idxCrear = addDriveRow(`📅 Creando: ${nombreNuevo}`);
-  const id       = await driveCreateFolder(nombreNuevo, CONFIG.DRIVE_OBRAS_ROOT);
+  const id = await driveCreateFolder(nombreNuevo, CONFIG.DRIVE_OBRAS_ROOT);
   updDriveRow(idxCrear, 'ok', id);
   return id;
 }
